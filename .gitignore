@@ -1,0 +1,6 @@
+current_assumptions_spreadsheets/*
+data_uploads/*
+model_results/*
+old_code/*
+*__pycache__*
+*.idea*
