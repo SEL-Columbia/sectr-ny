@@ -4,3 +4,4 @@ model_results/*
 old_code/*
 *__pycache__*
 *.idea*
+sel_nys_gridmodel.egg-info/*

@@ -66,6 +66,9 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]
         waste_emissions_mmt = 0
 
+    # Define existing usable cap based on reserve requirement
+    gt_existing_cap = [x / args.reserve_req for x in args.existing_gt_cap_mw]
+
     #####----------------------------------------------------------------------------------------------------------#####
     #####----------------------------------------------------------------------------------------------------------#####
     ##### !!!!!                     Initialize constraints for single node variables                       !!!!! #####
@@ -75,10 +78,13 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     for i in range(0, args.num_nodes):
 
         # set total, regional electrification rates
-        eheating_rate = m.addVar(ub=1, name=f'eheating_rate_node_{i+1}')
-        ev_rate = m.addVar(ub=1, name=f'ev_rate_node_{i+1}')
+        eheating_rate = m.addVar(name=f'eheating_rate_node_{i+1}')
+        m.addConstr(eheating_rate <= 1)
 
+        ev_rate = m.addVar(name=f'ev_rate_node_{i+1}')
+        m.addConstr(ev_rate <= 1)
 
+        m.update()
         if args.same_eheating_ev_rate_boolean:
             # Set the eheating and ev_rate equal
             m.addConstr(eheating_rate == ev_rate)
@@ -100,21 +106,27 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.update()
 
         ## Initialize capacity variables
-        onshore_cap     = m.addVar(obj=cost_dict['onshore_cost_per_mw'], lb=args.onshore_cap_existing_mw[i],
-                                   ub=args.onshore_cap_limit_mw[i], name=f'onshore_cap_node_{i+1}')
-        offshore_cap    = m.addVar(obj=cost_dict['offshore_cost_per_mw'], lb=args.offshore_cap_existing_mw[i],
-                                   name=f'offshore_cap_node_{i+1}')
-        solar_cap       = m.addVar(obj=cost_dict['solar_cost_per_mw'][i], lb=args.solar_cap_existing_mw[i],
-                                   ub=args.solar_cap_limit_mw[i], name = f'solar_cap_node_{i+1}')
-        gt_new_cap      = m.addVar(obj=cost_dict['gt_cost_per_mw'][i],
-                                   lb=int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i],
-                                   name = f'gt_new_cap_node_{i+1}')
-        battery_cap_mwh = m.addVar(obj=cost_dict['battery_cost_per_mwh'], lb=args.existing_battery_cap_mwh[i],
-                                   name = f'batt_energy_cap_node_{i+1}')
-        battery_cap_mw  = m.addVar(obj=cost_dict['battery_cost_per_mw'], lb=args.existing_battery_cap_mw[i],
-                                   name=f'batt_power_cap_node_{i+1}')
+        onshore_cap     = m.addVar(obj=cost_dict['onshore_cost_per_mw'], name=f'onshore_cap_node_{i+1}')
+        offshore_cap    = m.addVar(obj=cost_dict['offshore_cost_per_mw'], name=f'offshore_cap_node_{i+1}')
+        solar_cap       = m.addVar(obj=cost_dict['solar_cost_per_mw'][i], name = f'solar_cap_node_{i+1}')
+        gt_new_cap      = m.addVar(obj=cost_dict['gt_cost_per_mw'][i], name = f'gt_new_cap_node_{i+1}')
+        battery_cap_mwh = m.addVar(obj=cost_dict['battery_cost_per_mwh'], name = f'batt_energy_cap_node_{i+1}')
+        battery_cap_mw  = m.addVar(obj=cost_dict['battery_cost_per_mw'], name=f'batt_power_cap_node_{i+1}')
+
         h2_cap_mwh      = m.addVar(obj=cost_dict['h2_cost_per_mwh'][i], name = f'h2_energy_cap_node_{i+1}')
         h2_cap_mw       = m.addVar(obj=cost_dict['h2_cost_per_mw'][i], name = f'h2_power_cap_node_{i+1}')
+
+        # Add capacity constraints
+        m.addConstr(onshore_cap <= args.onshore_cap_limit_mw[i])
+        m.addConstr(onshore_cap >= args.onshore_cap_existing_mw[i])
+
+        m.addConstr(offshore_cap>=args.offshore_cap_existing_mw[i])
+        m.addConstr(solar_cap <= args.solar_cap_limit_mw[i])
+        m.addConstr(solar_cap >= args.solar_cap_existing_mw[i])
+
+        m.addConstr(gt_new_cap >= int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
+        m.addConstr(battery_cap_mwh >= args.existing_battery_cap_mwh[i])
+        m.addConstr(battery_cap_mw >= args.existing_battery_cap_mw[i])
 
 
         # Set the amount of new GT cap if no new capacity is allowed
@@ -135,15 +147,13 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
 
         ## Initialize time-series variables
-        flex_hydro_mw   = m.addVars(trange, ub=args.flex_hydro_cap_mw[i], name = f'flex_hydro_node_{i+1}')
-        biofuel_gen_mw  = m.addVars(trange, obj = args.biofuel_cost_mwh[i], ub=args.biofuel_cap_mw[i],
-                                    name=f'biofuel_util_node_{i+1}')
-        batt_charge     = m.addVars(trange, obj = args.nominal_storage_cost, name= f'batt_charge_node_{i+1}')
-        batt_discharge  = m.addVars(trange, obj = args.nominal_storage_cost, name= f'batt_discharge_node_{i+1}')
-        h2_charge       = m.addVars(trange, obj = args.nominal_storage_cost, name= f'h2_charge_node_{i+1}')
-        h2_discharge    = m.addVars(trange, obj = args.nominal_storage_cost, name= f'h2_discharge_node_{i+1}')
-        elec_import     = m.addVars(trange, obj=args.import_cost_mwh[i], ub=args.import_limit_mw[i],
-                                    name=f'elec_import_node_{i+1}')
+        flex_hydro_mw   = m.addVars(trange, name = f'flex_hydro_node_{i+1}')
+        biofuel_gen_mw  = m.addVars(trange, name=f'biofuel_util_node_{i+1}')
+        batt_charge     = m.addVars(trange, obj=args.nominal_storage_cost, name=f'batt_charge_node_{i+1}')
+        batt_discharge  = m.addVars(trange, obj=args.nominal_storage_cost, name=f'batt_discharge_node_{i+1}')
+        h2_charge       = m.addVars(trange, obj=args.nominal_storage_cost, name=f'h2_charge_node_{i+1}')
+        h2_discharge    = m.addVars(trange, obj=args.nominal_storage_cost, name=f'h2_discharge_node_{i+1}')
+        elec_import     = m.addVars(trange, obj=args.import_cost_mwh[i], name=f'elec_import_node_{i+1}')
 
         m.update()
 
@@ -184,12 +194,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         ev_charging  = m.addVars(trange, name = f'ev_charging_node_{i+1}')
 
         # Initialize gt variables
-        gt_new_util = m.addVars(trange, obj = cost_dict['new_gt_cost_mwh'][i], name=f'gt_new_util_node_{i+1}')
+        gt_new_util = m.addVars(trange, obj=cost_dict['new_gt_cost_mwh'][i], name=f'gt_new_util_node_{i+1}')
         gt_new_diff = m.addVars(trange, lb=-GRB.INFINITY, name = f'gt_new_diff_node_{i+1}')
         gt_new_abs  = m.addVars(trange, obj=args.new_gt_startup_cost_mw/2, name = f'gt_new_abs_node_{i+1}')
 
         gt_existing_util = m.addVars(trange, obj=cost_dict['existing_gt_cost_mwh'][i],
-                                     ub = args.existing_gt_cap_mw[i] / args.reserve_req,
                                      name=f'gt_existing_util_node_{i+1}')
         gt_existing_diff = m.addVars(trange, lb=-GRB.INFINITY, name=f'gt_existing_diff_node_{i+1}')
         gt_existing_abs  = m.addVars(trange, obj=args.new_gt_startup_cost_mw/2, name=f'gt_existing_abs_node_{i + 1}')
@@ -214,6 +223,13 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
         # Add time-series Constraints
         for j in trange:
+
+
+            # Maximum of various existing electricity sources
+            m.addConstr(flex_hydro_mw[j] <= args.flex_hydro_cap_mw[i])
+            m.addConstr(biofuel_gen_mw[j] <= args.biofuel_cap_mw[i])
+            m.addConstr(elec_import[j] <= args.import_limit_mw[i])
+            m.addConstr(gt_existing_util[j] <= gt_existing_cap[i])
 
             # Sum all the transmission export time series for node i at time step j
             if len(tx_export_keys) > 0:
@@ -360,6 +376,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(model_data_eheating_ratio[i] == model_data_eheating_ratio[i + 1])
             m.addConstr(model_data_ev_ratio[i] == model_data_ev_ratio[i + 1])
 
+    m.update()
     ## Collect thermal heating and transport demands for the electrification constraint
 
     # Get the full heating thermal load
@@ -398,7 +415,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     btmpv_avg_gen = np.sum([btmpv_cap_mw[k] * btmpv_cf[k] for k in range(args.num_nodes)])
 
     # Collect the total demand for LCT/RGT constraint
-    full_demand_sum_mwh  = np.sum(baseline_demand_hourly_mw[0:T]) + therm_heating_load_nodal_avg * T + \
+    full_demand_sum_mwh  = np.sum(baseline_demand_hourly_mw[0:T]) + eheating_load_avg * T + \
                            ev_load_avg * T - (1 - args.btmpv_count_re) * btmpv_avg_gen * T
 
     # Collect the GT utilization and import data for the LCT/RGT constraint
@@ -454,25 +471,27 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         # Compute constant costs independent of decision variables
         const_costs_total = calculate_constant_costs(args)
 
-        # Adjust scale to avoid very small transform decision variable and associated numerical issues
+        ## Adjust scale to avoid very small transform decision variable and associated numerical issues
         all_vars_init = m.getVars()
         obj_coeffs_init = m.getAttr('Obj')
-        const_costs_total = const_costs_total/1e9        
+        const_costs_total = const_costs_total / 1e9
         for i in range(len(all_vars_init)):
             var_it = all_vars_init[i]
-            var_it.setAttr('Obj',obj_coeffs_init[i]/1e9)
-        
-        # Create C-C transform variable and add to objective function with const_costs_total as coefficient
+            var_it.setAttr('Obj', obj_coeffs_init[i] / 1e9)
+
+        print(const_costs_total)
+        ## Create C-C transform variable and add to objective function with const_costs_total as coefficient
         cc_transform = m.addVar(lb=0, obj=const_costs_total, name='cc_transform')
         m.update()
-        
-        # Under transform, the negative of the RHS vector becomes the constraint coefficients for cc_transform and the RHS becomes zero
+
+        ## Under transform, the negative of the RHS vector becomes the constraint coefficients for cc_transform and the RHS becomes zero
         cc_b = m.getAttr('RHS')
         cc_constr_list = m.getConstrs()
+        print(f'length of constraints: {len(cc_constr_list)}')
+
         for i in range(len(cc_constr_list)):
             m.chgCoeff(cc_constr_list[i], m.getVarByName('cc_transform'), -cc_b[i])
-        m.setAttr('RHS',cc_constr_list, 0)
-
+        m.setAttr('RHS', cc_constr_list, 0)
 
         # Add constraint reflecting transformed denominator of linear-fractional objective (i.e. total electricity demand)
         m.addConstr((eheating_load_avg + ev_load_avg) * T + np.sum(baseline_demand_hourly_mw[0:T]) *

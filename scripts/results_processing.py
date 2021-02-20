@@ -237,8 +237,6 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     else:
         cf_mult = 1
 
-    print(cf_mult)
-
     # BTMPV Capacity
     if args.proj_year == 2019:
         btmpv_cap = args.btmpv_existing_mw
@@ -259,7 +257,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     # Add BTM capacity results
     for ix in range(args.num_nodes):
-        cap_results_df[f'btm_cap_node_{ix+1}'] = [btmpv_cap[ix]/cf_mult]
+        cap_results_df[f'btm_cap_node_{ix+1}'] = btmpv_cap[ix]
 
 
     ts_columns = ['energy_balance_slack_node_', 'flex_hydro_node_', 'batt_charge_node_', 'batt_discharge_node_',
