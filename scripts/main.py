@@ -1,8 +1,8 @@
-from model import create_model
-from utils import *
+from scripts.model import create_model
+from scripts.utils import *
 import numpy as np
 import datetime
-from results_processing import raw_results_retrieval, full_results_processing
+from scripts.results_processing import raw_results_retrieval, full_results_processing
 
 
 if __name__ == '__main__':
@@ -15,12 +15,12 @@ if __name__ == '__main__':
 
     ### --- INPUT the model_config and the numbers in option 0, 1, 2, 3 --- ###
     # Define model config and set of heating, EV loads, and/or GHG reduction target appropriately
-    model_config = 0
+    model_config = 3
 
     # 0: LCT + Elec. specified, GHG returned
     if model_config == 0:
-        elec_ratios  = [0.4, 0.6]
-        lowc_targets = [0.4, 0.6]
+        elec_ratios  = [0.4]
+        lowc_targets = [0.4]
         dghg_targets = [np.nan]*len(elec_ratios) # indeterminate
 
     # 1: LCT + GHG specified, Elec. returned

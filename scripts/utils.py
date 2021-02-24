@@ -74,22 +74,25 @@ def load_timeseries(args):
     :param args: args dictionary
     :return: Demand and potential renewable generation timeseries for the model
     '''
+    T = args.num_hours
 
     # Load all potential generation and actual hydro generation time-series
-    onshore_pot_hourly        = np.array(pd.read_csv(f'{args.data_dir}/onshore_power_hourly_norm.csv', index_col=0))
-    offshore_pot_hourly       = np.array(pd.read_csv(f'{args.data_dir}/offshore_power_hourly_norm.csv', index_col=0))
-    solar_pot_hourly          = np.array(pd.read_csv(f'{args.data_dir}/gridpv_power_hourly_norm.csv', index_col=0))
-    btmpv_pot_hourly          = np.array(pd.read_csv(f'{args.data_dir}/btmpv_power_hourly_norm.csv', index_col=0))
-    flex_hydro_daily_mwh      = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))
-    fixed_hydro_hourly_mw     = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))
+    onshore_pot_hourly    = np.array(pd.read_csv(f'{args.data_dir}/onshore_power_hourly_norm.csv', index_col=0))[0:T]
+    offshore_pot_hourly   = np.array(pd.read_csv(f'{args.data_dir}/offshore_power_hourly_norm.csv', index_col=0))[0:T]
+    solar_pot_hourly      = np.array(pd.read_csv(f'{args.data_dir}/gridpv_power_hourly_norm.csv', index_col=0))[0:T]
+    btmpv_pot_hourly      = np.array(pd.read_csv(f'{args.data_dir}/btmpv_power_hourly_norm.csv', index_col=0))[0:T]
+    flex_hydro_daily_mwh  = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))[0:int(T/24)]
+    fixed_hydro_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))[0:T]
 
     # Load baseline and full heating electric and thermal demand timeseries
-    baseline_demand_hourly_mw  = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
-                                                      index_col=0))[0:args.num_hours, :]
-    full_heating_load_hourly_mw     = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
-                                                      index_col=0))[0:args.num_hours, :]
+    baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
+                                                      index_col=0))[0:T]
+    full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
+                                                      index_col=0))[0:T]
     full_heating_load_hourly_mmbtu = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mmbtu.csv',
-                                                       index_col=0))[0:args.num_hours, :]
+                                                       index_col=0))[0:T]
+
+
 
     # Load full EV demand timeseries based on whether a set ev profile is to be loaded. If so, load the set EV
     # timeseries from the corresponding .csv; if not, take the region-wide average EV load being simulated,

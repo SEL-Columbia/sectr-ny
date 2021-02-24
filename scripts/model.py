@@ -1,6 +1,6 @@
 import numpy as np
 from gurobipy import *
-from utils import (load_timeseries, btmpv_capacity_projection, return_tx_dict,
+from scripts.utils import (load_timeseries, btmpv_capacity_projection, return_tx_dict,
                     return_costs_for_model, calculate_constant_costs)
 
 
@@ -269,11 +269,12 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(h2_level[j] - h2_cap_mwh <= 0)
 
             if j == 0:
-                # Battery/H2 energy conservation constraints for first time step (based on ending battery/H2 level)
+                # # Battery/H2 energy conservation constraints for first time step (based on ending battery/H2 level)
                 m.addConstr(batt_discharge[j] / args.battery_eff - args.battery_eff * batt_charge[j] ==
                             ((1 - args.battery_self_discharge) * batt_level[args.num_hours-1] - batt_level[j]))
                 m.addConstr(h2_discharge[j] / args.h2_eff - args.h2_eff * h2_charge[j] ==
                             ((1 - args.h2_self_discharge) * h2_level[args.num_hours-1] - h2_level[j]))
+                # print('')
 
             else:
                 # Battery/H2 energy conservation constraints
