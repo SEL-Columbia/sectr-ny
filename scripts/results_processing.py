@@ -200,20 +200,21 @@ def cost_calculations(args, cap_results_df, processed_df):
     total_nuclear_cost = args.nuclear_boolean * np.sum([args.nuc_avg_gen_mw[k] * args.nuc_cost_mwh[k] for
                                                         k in range(args.num_nodes)]) * T
 
-    total_biofuel_cost = np.sum([args.biofuel_daily_gen_mwh[k] * args.biofuel_cost_mwh[k]
-                                 for k in range(args.num_nodes)]) * T / 24
+    total_biofuel_cost = np.sum(np.array([processed_df[f'biofuel_util_node_{ix+1}_avg_mw'] for ix in range(
+                                    args.num_nodes)]).T * np.array(args.biofuel_cost_mwh) * T, axis=1)
 
     total_new_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_new_util_node_{ix+1}_avg_mw'] for ix in range(
-                                    args.num_nodes)]).T * np.array(args.gt_fuel_cost_mwh) * T, axis=1)
+                                    args.num_nodes)]).T * cost_dict['new_gt_cost_mwh'] * T, axis=1)
+
     total_existing_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_existing_util_node_{ix+1}_avg_mw'] for ix in
-                                    range(args.num_nodes)]).T * np.array(args.gt_fuel_cost_mwh) * T, axis=1)
+                                    range(args.num_nodes)]).T * cost_dict['existing_gt_cost_mwh'] * T, axis=1)
 
     total_new_gt_ramp_cost = np.array(processed_df['new_gt_ramp_avg_mw']) * args.new_gt_startup_cost_mw/2 * T
     total_existing_gt_ramp_cost = np.array(processed_df['existing_gt_ramp_avg_mw']) * \
                                   args.existing_gt_startup_cost_mw/2 * T
 
     total_imports_cost = np.sum(np.array([processed_df[f'elec_import_node_{ix+1}_avg_mw'] for ix in
-                                 range(args.num_nodes)]).T * np.array(args.import_cost_mwh), axis=1)
+                                 range(args.num_nodes)]).T * np.array(args.import_cost_mwh) * T, axis=1)
 
 
     ## Find the total supplmentary costs. Here total costs are the combinations of costs associated with maintaining
@@ -267,6 +268,9 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     # Populate the capacity results
     cap_results_df = pd.DataFrame()
+
+    cap_results_df['obj_value'] = [m.objVal]
+
     for ix, col in enumerate(cap_columns):
         for jx in range(args.num_nodes):
             column_string = f'{col}{jx+1}'
@@ -464,7 +468,6 @@ def full_results_processing(args):
     # Determine average electric heating and vehicle demand
     avg_heating_demand = np.sum(heating_rate * np.sum(full_heating_load_hourly_mw, axis=0)/T, axis=1)
     avg_ev_demand = np.sum(ev_rate * np.sum(full_ev_load_hourly_mw, axis=0)/T, axis=1)
-
 
     ## Populate processed dataframe
     # Add model run specifications

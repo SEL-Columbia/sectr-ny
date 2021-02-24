@@ -5,3 +5,4 @@ extra_code/*
 *__pycache__*
 *.idea*
 nys_testing.egg-info/*
+plots/*

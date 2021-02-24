@@ -102,7 +102,7 @@ nuc_avg_gen_mw: [3207, 0, 0, 0] # current w/ IP: [3207, 0, 1906, 0]; 2030: [3207
 
 # Hydropower
 hydro_cost_mwh: [18.47, 28.02, 0, 0]
-hydro_avg_gen_mw: [2723, 270, 0, 0]  # average generation
+#hydro_avg_gen_mw: [2723, 270, 0, 0]  # average generation
 hydro_cap_mw: [4717.4, 608.7, 0, 0]
 flex_hydro_cap_mw: [769.4, 608.7, 0, 0]
 
