@@ -1,6 +1,6 @@
 import numpy as np
 from gurobipy import *
-from utils import (load_timeseries, btmpv_capacity_projection, return_tx_dict,
+from scripts.utils import (load_timeseries, btmpv_capacity_projection, return_tx_dict,
                     return_costs_for_model, calculate_constant_costs)
 
 
@@ -148,7 +148,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
         ## Initialize time-series variables
         flex_hydro_mw   = m.addVars(trange, name = f'flex_hydro_node_{i+1}')
-        biofuel_gen_mw  = m.addVars(trange, name=f'biofuel_util_node_{i+1}')
+        biofuel_gen_mw  = m.addVars(trange, obj=args.biofuel_cost_mwh[i], name=f'biofuel_util_node_{i+1}')
         batt_charge     = m.addVars(trange, obj=args.nominal_storage_cost, name=f'batt_charge_node_{i+1}')
         batt_discharge  = m.addVars(trange, obj=args.nominal_storage_cost, name=f'batt_discharge_node_{i+1}')
         h2_charge       = m.addVars(trange, obj=args.nominal_storage_cost, name=f'h2_charge_node_{i+1}')
@@ -201,7 +201,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         gt_existing_util = m.addVars(trange, obj=cost_dict['existing_gt_cost_mwh'][i],
                                      name=f'gt_existing_util_node_{i+1}')
         gt_existing_diff = m.addVars(trange, lb=-GRB.INFINITY, name=f'gt_existing_diff_node_{i+1}')
-        gt_existing_abs  = m.addVars(trange, obj=args.new_gt_startup_cost_mw/2, name=f'gt_existing_abs_node_{i + 1}')
+        gt_existing_abs  = m.addVars(trange, obj=args.existing_gt_startup_cost_mw/2,
+                                     name=f'gt_existing_abs_node_{i+1}')
 
 
         # Initialize H2 constraints based on model run specifics
@@ -223,7 +224,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
         # Add time-series Constraints
         for j in trange:
-
 
             # Maximum of various existing electricity sources
             m.addConstr(flex_hydro_mw[j] <= args.flex_hydro_cap_mw[i])
@@ -269,11 +269,12 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(h2_level[j] - h2_cap_mwh <= 0)
 
             if j == 0:
-                # Battery/H2 energy conservation constraints for first time step (based on ending battery/H2 level)
+                # # Battery/H2 energy conservation constraints for first time step (based on ending battery/H2 level)
                 m.addConstr(batt_discharge[j] / args.battery_eff - args.battery_eff * batt_charge[j] ==
                             ((1 - args.battery_self_discharge) * batt_level[args.num_hours-1] - batt_level[j]))
                 m.addConstr(h2_discharge[j] / args.h2_eff - args.h2_eff * h2_charge[j] ==
                             ((1 - args.h2_self_discharge) * h2_level[args.num_hours-1] - h2_level[j]))
+                # print('')
 
             else:
                 # Battery/H2 energy conservation constraints
@@ -302,7 +303,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             jrange_daily = range(j * 24, (j + 1) * 24)
             m.addConstr(quicksum(flex_hydro_mw[k] for k in jrange_daily) == flex_hydro_daily_mwh[j, i])
             # biofuel total generation would be equal or smaller than the current generation
-            m.addConstr(quicksum(biofuel_gen_mw[k] for k in jrange_daily) == args.biofuel_daily_gen_mwh[i])
+            m.addConstr(quicksum(biofuel_gen_mw[k] for k in jrange_daily) <= args.biofuel_daily_gen_mwh[i])
 
         m.update()
 

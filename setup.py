@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="sel_nys_gridmodel",
+    name="nys_testing",
     packages=find_packages(),
     version="0.1.0",
     description=": Creating a energy sector model for NYS",

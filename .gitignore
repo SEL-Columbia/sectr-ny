@@ -1,7 +1,8 @@
 current_assumptions_spreadsheets/*
 data_uploads/*
 model_results/*
-old_code/*
+extra_code/*
 *__pycache__*
 *.idea*
-sel_nys_gridmodel.egg-info/*
+nys_testing.egg-info/*
+plots/*

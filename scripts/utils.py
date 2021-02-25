@@ -74,22 +74,27 @@ def load_timeseries(args):
     :param args: args dictionary
     :return: Demand and potential renewable generation timeseries for the model
     '''
+    T = args.num_hours
 
     # Load all potential generation and actual hydro generation time-series
-    onshore_pot_hourly        = np.array(pd.read_csv(f'{args.data_dir}/onshore_power_hourly_norm.csv', index_col=0))
-    offshore_pot_hourly       = np.array(pd.read_csv(f'{args.data_dir}/offshore_power_hourly_norm.csv', index_col=0))
-    solar_pot_hourly          = np.array(pd.read_csv(f'{args.data_dir}/gridpv_power_hourly_norm.csv', index_col=0))
-    btmpv_pot_hourly          = np.array(pd.read_csv(f'{args.data_dir}/btmpv_power_hourly_norm.csv', index_col=0))
-    flex_hydro_daily_mwh      = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))
-    fixed_hydro_hourly_mw     = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))
+    onshore_pot_hourly    = np.array(pd.read_csv(f'{args.data_dir}/onshore_power_hourly_norm.csv', index_col=0))[0:T]
+    offshore_pot_hourly   = np.array(pd.read_csv(f'{args.data_dir}/offshore_power_hourly_norm.csv', index_col=0))[0:T]
+    solar_pot_hourly      = np.array(pd.read_csv(f'{args.data_dir}/gridpv_power_hourly_norm.csv', index_col=0))[0:T]
+    btmpv_pot_hourly      = np.array(pd.read_csv(f'{args.data_dir}/btmpv_power_hourly_norm.csv', index_col=0))[0:T]
+    flex_hydro_daily_mwh  = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))[0:int(T/24)]
+    fixed_hydro_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))[0:T]
 
     # Load baseline and full heating electric and thermal demand timeseries
-    baseline_demand_hourly_mw  = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
-                                                      index_col=0))[0:args.num_hours, :]
-    full_heating_load_hourly_mw     = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
-                                                      index_col=0))[0:args.num_hours, :]
+    baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
+                                                      index_col=0))[0:T]
+    full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
+                                                      index_col=0))[0:T]
     full_heating_load_hourly_mmbtu = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mmbtu.csv',
-                                                       index_col=0))[0:args.num_hours, :]
+                                                       index_col=0))[0:T]
+
+    ## Set average hydropower generation
+    hydro_avg_gen_mw = np.mean(fixed_hydro_hourly_mw, axis=0) + np.mean(flex_hydro_daily_mwh, axis=0)/24
+    args.__dict__['hydro_avg_gen_mw'] = hydro_avg_gen_mw
 
     # Load full EV demand timeseries based on whether a set ev profile is to be loaded. If so, load the set EV
     # timeseries from the corresponding .csv; if not, take the region-wide average EV load being simulated,
@@ -197,12 +202,15 @@ def calculate_constant_costs(args):
     '''
     This function calculates the constant costs that are added as-is to every model run. They include annual costs for
     existing transmission and generation capacity multiplied by the number of model-simulated years, args.num_years;
-    and costs for hydropower, nuclear, and biofuel generation over the number of model timesteps, T.
+    and costs for hydropower and nuclear, and biofuel generation over the number of model timesteps, T.
 
     :param args: args dictionary
     :return: const_costs_total, a number representing the total constant costs added to the model
     '''
+    # Load timeseries to populate avg hydropower generation in case it hasn't been done yet
+    _ = load_timeseries(args)
 
+    # Extract # of hours
     T = args.num_hours
 
     # Find the cost of maintaining existing transmission over the # years in the study period
@@ -217,27 +225,16 @@ def calculate_constant_costs(args):
     # of eligible capacity by the nodal cost of that capacity
     existing_cap_cost = np.sum(existing_cap_for_payments_mw * np.array(args.cap_market_cost_mw_yr)) * args.num_years
 
-    # Find the total costs of hydropower, nuclear, and biofuel generation by multiplying the average
-    # generation quantities by their per-MWh costs and the number of time periods simulated (T hours for hydro, nuclear,
-    # and T/24 days for biofuel)
+    # Find the total costs of hydropower and nuclear generation by multiplying the average
+    # generation quantities by their per-MWh costs and the number of time periods simulated (T hours for hydro and
+    # nuclear)
+
     total_hydro_cost = np.sum([args.hydro_avg_gen_mw[k] * args.hydro_cost_mwh[k] for k in range(args.num_nodes)]) * T
     total_nuclear_cost = args.nuclear_boolean * np.sum([args.nuc_avg_gen_mw[k] * args.nuc_cost_mwh[k] for
                                                         k in range(args.num_nodes)]) * T
-    total_biofuel_cost = np.sum([args.biofuel_daily_gen_mwh[k] * args.biofuel_cost_mwh[k]
-                                 for k in range(args.num_nodes)]) * T / 24
 
     # Find the total amount of constant costs by adding the individual cost terms determined above
-    const_costs_total = (existing_tx_costs + existing_cap_cost + total_hydro_cost + total_nuclear_cost +
-                            total_biofuel_cost)
-
-
-
-    print(f'constant costs total: {const_costs_total}')
-    print(existing_tx_costs)
-    print(existing_cap_cost)
-    print(total_hydro_cost)
-    print(total_nuclear_cost)
-    print(total_biofuel_cost)
+    const_costs_total = (existing_tx_costs + existing_cap_cost + total_hydro_cost + total_nuclear_cost)
 
     return const_costs_total
 
