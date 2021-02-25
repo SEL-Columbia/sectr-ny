@@ -18,7 +18,6 @@ same_nodal_elecfx_rates_boolean: True  # True: each node has same electrificatio
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
 gt_based_on_current: True        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
-                                 # short-term study; False: for full page or high RE penetration ~100%)
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
 
 # input year
@@ -102,7 +101,7 @@ nuc_avg_gen_mw: [3207, 0, 0, 0] # current w/ IP: [3207, 0, 1906, 0]; 2030: [3207
 
 # Hydropower
 hydro_cost_mwh: [18.47, 28.02, 0, 0]
-hydro_avg_gen_mw: [2728, 269, 0, 0]  # average generation
+#hydro_avg_gen_mw: [2723, 270, 0, 0]  # average generation
 hydro_cap_mw: [4717.4, 608.7, 0, 0]
 flex_hydro_cap_mw: [769.4, 608.7, 0, 0]
 

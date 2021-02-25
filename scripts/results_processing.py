@@ -5,7 +5,8 @@ import yaml
 import numpy as np
 import pandas as pd
 from glob import glob
-from utils import get_args, load_timeseries, return_tx_dict, btmpv_capacity_projection, return_costs_for_model
+from scripts.utils import (get_args, load_timeseries, return_tx_dict,
+                           btmpv_capacity_projection, return_costs_for_model)
 
 
 def load_ts_based_results(args, processed_df):
@@ -40,7 +41,9 @@ def load_ts_based_results(args, processed_df):
 
     curtailment = np.zeros((len(ts_results_files), args.num_nodes))
     biofuel_util = np.zeros((len(ts_results_files), args.num_nodes))
+    battery_charge = np.zeros((len(ts_results_files), args.num_nodes))
     battery_discharge = np.zeros((len(ts_results_files), args.num_nodes))
+    h2_charge = np.zeros((len(ts_results_files), args.num_nodes))
     h2_discharge = np.zeros((len(ts_results_files), args.num_nodes))
     elec_import = np.zeros((len(ts_results_files), args.num_nodes))
     tx_util = np.zeros((len(ts_results_files), len(tx_dict)))
@@ -80,8 +83,12 @@ def load_ts_based_results(args, processed_df):
         # Find curtailment, battery_discharge, elec_import
         curtailment[ix] = np.sum(np.array([ts_csv[f'energy_balance_slack_node_{i+1}']
                                            for i in range(args.num_nodes)]).T, axis=0)
+        battery_charge[ix] = np.sum(np.array([ts_csv[f'batt_charge_node_{i + 1}'] for i in
+                                                 range(args.num_nodes)]).T, axis=0)
         battery_discharge[ix] = np.sum(np.array([ts_csv[f'batt_discharge_node_{i+1}'] for i in
                                                  range(args.num_nodes)]).T, axis=0)
+        h2_charge[ix] = np.sum(np.array([ts_csv[f'h2_charge_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                  axis=0)
         h2_discharge[ix] = np.sum(np.array([ts_csv[f'h2_discharge_node_{i+1}'] for i in range(args.num_nodes)]).T,
                                   axis=0)
         elec_import[ix] = np.sum(np.array([ts_csv[f'elec_import_node_{i+1}'] for i in range(args.num_nodes)]).T,
@@ -152,10 +159,20 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'biofuel_peak_load_node_{ix+1}_mw'] = biofuel_peak_load[:, ix]
 
+    # Add battery charge, regional and by node
+    processed_df['battery_charge_regional_avg_mw'] = np.sum(battery_charge, axis=1) / T
+    for ix in range(args.num_nodes):
+        processed_df[f'battery_charge_node_{ix+1}_avg_mw'] = battery_charge[:, ix] / T
+
     # Add battery discharge, regional and by node
     processed_df['battery_discharge_regional_avg_mw'] = np.sum(battery_discharge, axis=1)/T
     for ix in range(args.num_nodes):
         processed_df[f'battery_discharge_node_{ix+1}_avg_mw'] = battery_discharge[:, ix]/T
+
+    # Add average H2 charge, regional and by node
+    processed_df['h2_charge_regional_avg_mw'] = np.sum(h2_charge, axis=1) / T
+    for ix in range(args.num_nodes):
+        processed_df[f'h2_charge_node_{ix+1}_avg_mw'] = h2_charge[:, ix] / T
 
     # Add average H2 discharge, regional and by node
     processed_df['h2_discharge_regional_avg_mw'] = np.sum(h2_discharge, axis=1) / T
@@ -237,20 +254,21 @@ def cost_calculations(args, cap_results_df, processed_df):
     total_nuclear_cost = args.nuclear_boolean * np.sum([args.nuc_avg_gen_mw[k] * args.nuc_cost_mwh[k] for
                                                         k in range(args.num_nodes)]) * T
 
-    total_biofuel_cost = np.sum([args.biofuel_daily_gen_mwh[k] * args.biofuel_cost_mwh[k]
-                                 for k in range(args.num_nodes)]) * T / 24
+    total_biofuel_cost = np.sum(np.array([processed_df[f'biofuel_util_node_{ix+1}_avg_mw'] for ix in range(
+                                    args.num_nodes)]).T * np.array(args.biofuel_cost_mwh) * T, axis=1)
 
     total_new_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_new_util_node_{ix+1}_avg_mw'] for ix in range(
-                                    args.num_nodes)]).T * np.array(args.gt_fuel_cost_mwh) * T, axis=1)
+                                    args.num_nodes)]).T * cost_dict['new_gt_cost_mwh'] * T, axis=1)
+
     total_existing_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_existing_util_node_{ix+1}_avg_mw'] for ix in
-                                    range(args.num_nodes)]).T * np.array(args.gt_fuel_cost_mwh) * T, axis=1)
+                                    range(args.num_nodes)]).T * cost_dict['existing_gt_cost_mwh'] * T, axis=1)
 
     total_new_gt_ramp_cost = np.array(processed_df['new_gt_ramp_avg_mw']) * args.new_gt_startup_cost_mw/2 * T
     total_existing_gt_ramp_cost = np.array(processed_df['existing_gt_ramp_avg_mw']) * \
                                   args.existing_gt_startup_cost_mw/2 * T
 
     total_imports_cost = np.sum(np.array([processed_df[f'elec_import_node_{ix+1}_avg_mw'] for ix in
-                                 range(args.num_nodes)]).T * np.array(args.import_cost_mwh), axis=1)
+                                 range(args.num_nodes)]).T * np.array(args.import_cost_mwh) * T, axis=1)
 
 
     ## Find the total supplmentary costs. Here total costs are the combinations of costs associated with maintaining
@@ -304,6 +322,9 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     # Populate the capacity results
     cap_results_df = pd.DataFrame()
+
+    cap_results_df['obj_value'] = [m.objVal]
+
     for ix, col in enumerate(cap_columns):
         for jx in range(args.num_nodes):
             column_string = f'{col}{jx+1}'
@@ -314,17 +335,56 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
         cap_results_df[f'btm_cap_node_{ix+1}'] = btmpv_cap[ix]
 
 
-    ts_columns = ['energy_balance_slack_node_', 'flex_hydro_node_', 'batt_charge_node_', 'batt_discharge_node_',
+    ts_columns = ['ev_charging_node_', 'energy_balance_slack_node_', 'flex_hydro_node_', 'batt_charge_node_',
+                  'batt_discharge_node_',
                   'batt_level_node_', 'h2_charge_node_', 'h2_discharge_node_', 'h2_level_node_',
                   'gt_new_util_node_', 'gt_new_diff_node_', 'gt_new_abs_node_', 'gt_existing_util_node_',
                   'gt_existing_diff_node_', 'gt_existing_abs_node_', 'biofuel_util_node_', 'elec_import_node_',
-                  'ev_charging_node_']
+                  ]
 
     ## Populate timeseries Dataframe
     ts_results_df = pd.DataFrame()
+
+    # First put in demand timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'baseline_demand_node_{ix+1}'] = baseline_demand_hourly_mw[:, ix]
+
+    # Add heating timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'heating_demand_node_{ix+1}'] = np.array(cap_results_df[f'eheating_rate_node_{ix+1}']) * \
+                                                             full_heating_load_hourly_mw[:, ix]
+
+    # Add onshore wind uncurtailed generation timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'onshore_uc_gen_node_{ix+1}'] = np.array(cap_results_df[f'onshore_cap_node_{ix+1}']) * \
+                                                             onshore_pot_hourly[:, ix]
+
+    # Add offshore wind uncurtailed generation timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'offshore_uc_gen_node_{ix+1}'] = np.array(cap_results_df[f'offshore_cap_node_{ix+1}']) * \
+                                                      offshore_pot_hourly[:, ix]
+
+    # Add solar uncurtailed generation timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'solar_uc_gen_node_{ix+1}'] = np.array(cap_results_df[f'solar_cap_node_{ix+1}']) * \
+                                                       solar_pot_hourly[:, ix]
+
+    # Add BTM uncurtailed generation timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'btmpv_uc_gen_node_{ix+1}'] = btmpv_cap[ix] * btmpv_pot_hourly[:, ix]
+
+    # Add fixed hydropower generation timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'fixed_hydro_gen_node_{ix+1}'] = fixed_hydro_hourly_mw[:, ix]
+
+    # Add nuclear generation timeseries
+    for ix in range(args.num_nodes):
+        ts_results_df[f'nuclear_gen_node_{ix+1}'] = int(args.nuclear_boolean) * args.nuc_avg_gen_mw[ix]
+
+    # Add timeseries from ts_columns
     for ix, col in enumerate(ts_columns):
         ts_results_array = np.zeros((T, args.num_nodes))
-        if ix == 0: # Collect the energy balance slack ts
+        if ix == 1: # Collect the energy balance slack ts
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
                 for kx in range(T):
@@ -542,7 +602,7 @@ def full_results_processing(args):
 
 if __name__ == '__main__':
     args = get_args()
-    args.__dict__['dir_time'] = '20210220-105808'
+    args.__dict__['dir_time'] = '20210223-110622'
 
 
     full_results_processing(args)
