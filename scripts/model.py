@@ -302,7 +302,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             jrange_daily = range(j * 24, (j + 1) * 24)
             m.addConstr(quicksum(flex_hydro_mw[k] for k in jrange_daily) == flex_hydro_daily_mwh[j, i])
             # biofuel total generation would be equal or smaller than the current generation
-            m.addConstr(quicksum(biofuel_gen_mw[k] for k in jrange_daily) == args.biofuel_daily_gen_mwh[i])
+            m.addConstr(quicksum(biofuel_gen_mw[k] for k in jrange_daily) <= args.biofuel_daily_gen_mwh[i])
 
         m.update()
 
@@ -392,7 +392,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                               for i in range(args.num_nodes))
 
     # Weighted (thermal?) EV electrification ratio based on the EV load distribution
-    weighted_ev_elecfx_ratio = quicksum(args.ev_load_dist[i] * model_data_ev_ratio[i] for i in range(
+    weighted_ev_elecfx_ratio = quicksum(args.icv_load_dist[i] * model_data_ev_ratio[i] for i in range(
         args.num_nodes))
 
     # Constrain the electrification fractions to be either == to >= what's specified by elec_ratio
@@ -401,8 +401,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     if model_config == 0 or model_config == 2:
         if args.elecfx_constraint_ge:
             m.addConstr(therm_heating_load_nodal_avg - np.sum(full_therm_heating_load_nodal_avg) *
-                        (1-elec_ratio) <= 0)
-            m.addConstr(weighted_ev_elecfx_ratio - elec_ratio <= 0)
+                        (1-elec_ratio) >= 0)
+            m.addConstr(weighted_ev_elecfx_ratio - elec_ratio >= 0)
 
 
         else:
@@ -453,7 +453,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     m.addConstr((elec_emissions +
                 quicksum(args.flex_heating_emissions_mmt[i] * (1 - model_data_eheating_ratio[i]) for i in range(
                     args.num_nodes)) +
-                args.flex_trans_emissions_mmt * quicksum((1 - model_data_ev_ratio[i]) * args.ev_load_dist[i]
+                args.flex_trans_emissions_mmt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
                                                          for i in range(args.num_nodes)) +
                 args.fixed_trans_emissions_mmt +
                 args.fixed_ind_emissions_mmt +
