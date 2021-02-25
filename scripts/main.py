@@ -15,18 +15,18 @@ if __name__ == '__main__':
 
     ### --- INPUT the model_config and the numbers in option 0, 1, 2, 3 --- ###
     # Define model config and set of heating, EV loads, and/or GHG reduction target appropriately
-    model_config = 0
+    model_config = 1
 
     # 0: LCT + Elec. specified, GHG returned
     if model_config == 0:
-        elec_ratios  = [0.4, 0.6]
-        lowc_targets = [0.4, 0.6]
+        elec_ratios  = [0.5, 0.8]
+        lowc_targets = [0.5, 0.8]
         dghg_targets = [np.nan]*len(elec_ratios) # indeterminate
 
     # 1: LCT + GHG specified, Elec. returned
     elif model_config == 1:
-        lowc_targets = [0.4,0.6,]
-        dghg_targets = [0.2,0.3,]
+        lowc_targets = [0.7, 0.7, 1]
+        dghg_targets = [0.4,0.7, 0.7]
         elec_ratios = [np.nan]*len(lowc_targets) # indeterminate
 
     # 2: Elec. + GHG specified, LCT returned.

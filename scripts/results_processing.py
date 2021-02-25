@@ -36,6 +36,9 @@ def load_ts_based_results(args, processed_df):
     gt_existing_max_util = np.zeros(len(ts_results_files))
     gt_total_max_util = np.zeros(len(ts_results_files))
 
+    gt_existing_peak_load = np.zeros((len(ts_results_files), args.num_nodes))
+    biofuel_peak_load     = np.zeros((len(ts_results_files), args.num_nodes))
+
     curtailment = np.zeros((len(ts_results_files), args.num_nodes))
     biofuel_util = np.zeros((len(ts_results_files), args.num_nodes))
     battery_charge = np.zeros((len(ts_results_files), args.num_nodes))
@@ -44,6 +47,11 @@ def load_ts_based_results(args, processed_df):
     h2_discharge = np.zeros((len(ts_results_files), args.num_nodes))
     elec_import = np.zeros((len(ts_results_files), args.num_nodes))
     tx_util = np.zeros((len(ts_results_files), len(tx_dict)))
+    tx_nodal_avg_import = np.zeros((len(ts_results_files), args.num_nodes)) # transmission import sum for each node
+
+    battery_losses = np.zeros((len(ts_results_files), args.num_nodes))
+    h2_losses      = np.zeros((len(ts_results_files), args.num_nodes))
+    tx_losses      = np.zeros((len(ts_results_files), args.num_nodes))
 
     # Iterate through the ts results files, each corresponding to a single scenario
     for ix, file in enumerate(ts_results_files):
@@ -67,6 +75,11 @@ def load_ts_based_results(args, processed_df):
         total_gt_existing_ramping[ix] = np.sum(np.array([ts_csv[f'gt_existing_abs_node_{i+1}']
                                                     for i in range(args.num_nodes)]).T)
 
+        # find the existing GT, biofuel peak load (explore for the retirement later)
+        gt_existing_peak_load[ix] = np.max(gt_existing_util, axis=0)
+        biofuel_peak_load[ix] = np.max(np.array([ts_csv[f'biofuel_util_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                       axis=0)
+
         # Find curtailment, battery_discharge, elec_import
         curtailment[ix] = np.sum(np.array([ts_csv[f'energy_balance_slack_node_{i+1}']
                                            for i in range(args.num_nodes)]).T, axis=0)
@@ -83,6 +96,21 @@ def load_ts_based_results(args, processed_df):
         biofuel_util[ix] = np.sum(np.array([ts_csv[f'biofuel_util_node_{i+1}'] for i in range(args.num_nodes)]).T,
                                  axis=0)
 
+        # Battery / h2 losses
+        battery_losses[ix] = np.sum(np.array([ts_csv[f'batt_discharge_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                    axis=0) * (1-args.battery_eff) + \
+                             np.sum(np.array([ts_csv[f'batt_charge_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                    axis=0) * (1/args.battery_eff-1) + \
+                             np.sum(np.array([ts_csv[f'batt_level_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                    axis=0) * args.battery_self_discharge
+
+        h2_losses[ix]      = np.sum(np.array([ts_csv[f'h2_discharge_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                    axis=0) * (1-args.h2_eff) + \
+                             np.sum(np.array([ts_csv[f'h2_charge_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                    axis=0) * (1/args.h2_eff-1) + \
+                             np.sum(np.array([ts_csv[f'h2_level_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                    axis=0) * args.h2_self_discharge
+
         # Find tx flow
         tx_output_cols = []
         for jx, tx_key in enumerate(tx_dict.keys()):
@@ -94,30 +122,42 @@ def load_ts_based_results(args, processed_df):
 
             tx_util[ix, jx] = np.mean(ts_csv[tx_ts_string])
 
-    ## Begin populating the processed dataframe with stats from the timeseries
+            # sum up the transmission import for each ndoe
+            tx_nodal_avg_import[ix, node_in-1] += tx_util[ix, jx]
+
+        # find the transmission losses
+        tx_losses[ix, :] = tx_nodal_avg_import[ix, :] * args.trans_loss
+
+        ## Begin populating the processed dataframe with stats from the timeseries
     # Add curtailment calculations, regional and by node
     processed_df['curtailment_regional_avg_mw'] = np.sum(curtailment, axis=1)/T
     for ix in range(args.num_nodes):
         processed_df[f'curtailment_node_{ix + 1}_avg_mw'] = curtailment[:, ix] / T
 
     # Add average new GT utilization results, regional and by node
-    processed_df[f'gt_new_util_regional_avg_mw'] = np.sum(total_gt_new_util, axis=1) / T
+    processed_df['gt_new_util_regional_avg_mw'] = np.sum(total_gt_new_util, axis=1) / T
     for ix in range(args.num_nodes):
         processed_df[f'gt_new_util_node_{ix+1}_avg_mw'] = total_gt_new_util[:, ix]/T
 
     # Add average existing GT utilization results, regional and by node
-    processed_df[f'gt_existing_util_regional_avg_mw'] = np.sum(total_gt_existing_util, axis=1) / T
+    processed_df['gt_existing_util_regional_avg_mw'] = np.sum(total_gt_existing_util, axis=1) / T
     for ix in range(args.num_nodes):
         processed_df[f'gt_existing_util_node_{ix+1}_avg_mw'] = total_gt_existing_util[:, ix]/T
+    # Add maximum existing GT utilization results, by node
+    for ix in range(args.num_nodes):
+        processed_df[f'gt_existing_peak_load_node_{ix+1}_mw'] = gt_existing_peak_load[:, ix]
 
     # Add averaging ramping results for the full region
     processed_df['new_gt_ramp_avg_mw'] = total_gt_new_ramping/T
     processed_df['existing_gt_ramp_avg_mw'] = total_gt_existing_ramping/T
 
     # Add biofuel utilization, regional by node
-    processed_df[f'biofuel_util_regional_avg_mw'] = np.sum(biofuel_util, axis=1) / T
+    processed_df['biofuel_util_regional_avg_mw'] = np.sum(biofuel_util, axis=1) / T
     for ix in range(args.num_nodes):
         processed_df[f'biofuel_util_node_{ix+1}_avg_mw'] = biofuel_util[:, ix]/T
+    # Add maximum biofuel load results, by node
+    for ix in range(args.num_nodes):
+        processed_df[f'biofuel_peak_load_node_{ix+1}_mw'] = biofuel_peak_load[:, ix]
 
     # Add battery charge, regional and by node
     processed_df['battery_charge_regional_avg_mw'] = np.sum(battery_charge, axis=1) / T
@@ -140,7 +180,7 @@ def load_ts_based_results(args, processed_df):
         processed_df[f'h2_discharge_node_{ix + 1}_avg_mw'] = h2_discharge[:, ix] / T
 
     # Add average electricity import, region and by node
-    processed_df[f'elec_import_regional_avg_mw'] = np.sum(elec_import, axis=1) / T
+    processed_df['elec_import_regional_avg_mw'] = np.sum(elec_import, axis=1) / T
     for ix in range(args.num_nodes):
         processed_df[f'elec_import_node_{ix+1}_avg_mw'] = elec_import[:, ix]/T
 
@@ -149,7 +189,21 @@ def load_ts_based_results(args, processed_df):
         tx_output_col = f'tx_avg_util_{tx_key.split("_")[-2]}_to_{tx_key.split("_")[-1]}_mw'
         processed_df[tx_output_col] = tx_util[:, jx]
 
+    # Add average losses from battery and h2, regional and by node
+    processed_df['battery_losses_regional_avg_mw'] = np.sum(battery_losses, axis=1)/T
+    for ix in range(args.num_nodes):
+        processed_df[f'battery_losses_node_{ix+1}_avg_mw'] = battery_losses[:, ix]/T
+    processed_df['h2_losses_regional_avg_mw'] = np.sum(h2_losses, axis=1)/T
+    for ix in range(args.num_nodes):
+        processed_df[f'h2_losses_node_{ix+1}_avg_mw'] = h2_losses[:, ix]/T
+
+    # Add average losses from transmission, regional and by node
+    processed_df[f'tx_losses_regional_avg_mw'] = np.sum(tx_losses, axis=1)
+    for ix in range(args.num_nodes):
+        processed_df[f'tx_losses_node_{ix+1}_avg_mw'] = tx_losses[:, ix]
+
     return processed_df
+
 
 def cost_calculations(args, cap_results_df, processed_df):
     '''
@@ -388,13 +442,13 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     # Heating electrification rate
     full_therm_heating_load_nodal_avg = np.mean(full_heating_load_hourly_mmbtu, axis=0)
     therm_heating_load_nodal_avg = np.array([full_therm_heating_load_nodal_avg[i] *
-                                        (1 - cap_results_df[f'eheating_rate_node_{i+1}']) for i in range(
-                                        args.num_nodes)])
+                                             (1 - cap_results_df[f'eheating_rate_node_{i+1}'])
+                                             for i in range(args.num_nodes)])
 
     heating_elecfx = 1 - np.sum(therm_heating_load_nodal_avg)/np.sum(full_therm_heating_load_nodal_avg)
 
     # Find the vehicle electrification rate
-    ev_elecfx_nodal_ratios = np.array([args.ev_load_dist[i] * cap_results_df[f'ev_rate_node_{i+1}'] for i in
+    ev_elecfx_nodal_ratios = np.array([args.icv_load_dist[i] * cap_results_df[f'ev_rate_node_{i+1}'] for i in
                                                 range(args.num_nodes)])
 
     veh_elecfx = np.sum(ev_elecfx_nodal_ratios)
@@ -481,6 +535,8 @@ def full_results_processing(args):
     # Add additional electic heating and vehicle loads
     processed_df['addl_heating_load_mw'] = avg_heating_demand
     processed_df['addl_ev_load_mw'] = avg_ev_demand
+    # Add load met by btm solar
+    processed_df['btmpv_load_mw'] = - np.sum(btm_cap * np.mean(btmpv_pot_hourly, axis=0), axis=1)
     # Continue parameterizing the processed dataframe with other model configuration parameters
     processed_df['rgt_boolean'] = [int(args.rgt_boolean)] * len(cap_results_df)
     processed_df['nuc_boolean'] = [int(args.nuclear_boolean)] * len(cap_results_df)
@@ -525,6 +581,19 @@ def full_results_processing(args):
     processed_df['generation_lcoe'] = generation_cost/total_mwh_for_lcoe
     processed_df['supp_cost_lcoe']  = supp_cost/total_mwh_for_lcoe
     processed_df['total_lcoe'] = (new_cap_cost + generation_cost + supp_cost)/total_mwh_for_lcoe
+
+
+    ## calculate the renewable electricity ratio / low-carbon electricity ratio
+    # average demand for renewable depend on
+    avg_mwh_for_rg = total_mwh_for_lcoe/T + args.btmpv_count_re * btm_avg_mwh - \
+                     processed_df['elec_import_regional_avg_mw']
+    processed_df['model_rg'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
+                                    processed_df['gt_new_util_regional_avg_mw'] +
+                                    processed_df['biofuel_util_regional_avg_mw'] +
+                                    args.nuclear_boolean * np.sum(args.nuc_avg_gen_mw)) / avg_mwh_for_rg
+    processed_df['model_lc'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
+                                    processed_df['gt_new_util_regional_avg_mw'] +
+                                    processed_df['biofuel_util_regional_avg_mw']) / avg_mwh_for_rg
 
     # Write out the processed dataframe!
     processed_df_filename = f'{args.results_dir}/{args.dir_time}/processed_results_{args.dir_time}.csv'

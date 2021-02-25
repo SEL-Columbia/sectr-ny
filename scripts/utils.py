@@ -67,7 +67,6 @@ def set_gurobi_model_params(args, model):
     return model
 
 
-
 def load_timeseries(args):
     '''
     Function for loading the input timeseries required by the model.
@@ -96,16 +95,13 @@ def load_timeseries(args):
     hydro_avg_gen_mw = np.mean(fixed_hydro_hourly_mw, axis=0) + np.mean(flex_hydro_daily_mwh, axis=0)/24
     args.__dict__['hydro_avg_gen_mw'] = hydro_avg_gen_mw
 
-    # Load full EV demand timeseries based on whether a set ev profile is to be loaded. If so, load the set EV
-    # timeseries from the corresponding .csv; if not, take the region-wide average EV load being simulated,
-    # and distribute it across the nodes according to `args.ev_load_dist`. This distributed nodal average load is then
-    # repeated at every timestep in T
-    if args.ev_set_profile_boolean:
-        full_ev_load_hourly_mw =  np.array(pd.read_csv(f'{args.data_dir}/elec_vehicle_hourly_mw.csv',
-                                                  index_col=0))[0:args.num_hours,:]
-        full_ev_avg_load_hourly_mw      = np.mean(full_ev_load_hourly_mw, axis=0)
-    else:
-        full_ev_avg_load_hourly_mw      = np.multiply(args.ev_load_dist, args.ev_full_cap_mw)
+    # Load full EV demand timeseries from the corresponding .csv, and calculate the region-wide average EV load.
+    # If not ev_set_profile, take the distributed nodal average load repeated at every timestep in T
+    full_ev_load_hourly_mw =  np.array(pd.read_csv(f'{args.data_dir}/elec_vehicle_hourly_mw.csv',
+                                                       index_col=0))[0:args.num_hours,:]
+    full_ev_avg_load_hourly_mw      = np.mean(full_ev_load_hourly_mw, axis=0)
+
+    if not args.ev_set_profile_boolean:
         full_ev_load_hourly_mw          = np.tile(full_ev_avg_load_hourly_mw,(args.num_hours,1))
 
     # Clipping option to remove renewable generation potential values less than `min_val` MW/MW

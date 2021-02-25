@@ -1,6 +1,6 @@
 # Model run parameters
-data_dir: '../data_uploads'
-results_dir: '../model_results'
+data_dir: './data_uploads'
+results_dir: './model_results'
 
 # output scenario name
 scenario_name: 'scenario_name'
@@ -10,15 +10,14 @@ scenario_name: 'scenario_name'
 re_cost_scenario: 'medium'       # or 'low' for low renewable generator and battery storage costs
 fix_re_cap_boolean: False        # True: fix wind, solar, battery capacity
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
-nuclear_boolean: False           # True: allow nuclear; False: no nuclear
+nuclear_boolean: True           # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
 new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
 same_nodal_elecfx_rates_boolean: True  # True: each node has same electrification rate; Only use false with config = 1
-btmpv_count_re : False               # True: btmpv generation can be count as renewable generation
+btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
 gt_based_on_current: True        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
-                                  # short-term study; False: for full page or high RE penetration ~100%)
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
 
 # input year
@@ -71,7 +70,7 @@ existing_battery_cap_mwh: [5.2, 80, 0, 65]
 ## H2 storage assumptions
 # Cost
 h2_capex_mw: [3.013e6, 3.013e6, 4.036e6, 4.036e6]
-h2_capex_mwh: [360, 8.29e3, 8.29e3, 8.29e3]
+h2_capex_mwh: [350, 8.29e3, 8.29e3, 8.29e3]
 h2_om_cost_mw_yr: 48.87e3
 # Efficiencies, self-discharge, p2e ratio constraint,
 h2_eff: 0.592
@@ -127,7 +126,7 @@ ev_charging_p2e_ratio: 0.166666667
 ev_hours_start: 0 # 0 UTC is the 19:00 PM in NY
 ev_charging_hours: 24
 ev_charging_method: 'flexible' # or 'fixed'
-ev_load_dist: [0.3609526, 0.1747773, 0.2518691, 0.2124010]
+icv_load_dist: [0.3609526, 0.1747773, 0.2518691, 0.2124010]  # traditional internal combustion vehicle distribution
 
 # Other assumptions
 trans_loss: 0.03
