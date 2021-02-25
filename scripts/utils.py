@@ -86,10 +86,16 @@ def load_timeseries(args):
     # Load baseline and full heating electric and thermal demand timeseries
     baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
                                                       index_col=0))[0:T]
-    full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
-                                                      index_col=0))[0:T]
-    full_heating_load_hourly_mmbtu = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mmbtu.csv',
+    if args.dss_synthetic_ts:
+        full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw_dss50.csv',
+                                                           index_col=0))[0:T]
+    else:
+        full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
+                                                           index_col=0))[0:T]
+    full_ff_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                        index_col=0))[0:T]
+    full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/FF_DSS50_FILE',
+                                                   index_col=0))[0:T]
 
     ## Set average hydropower generation
     hydro_avg_gen_mw = np.mean(fixed_hydro_hourly_mw, axis=0) + np.mean(flex_hydro_daily_mwh, axis=0)/24
@@ -114,7 +120,8 @@ def load_timeseries(args):
         btmpv_pot_hourly    = np.where(btmpv_pot_hourly < min_val, 0, btmpv_pot_hourly)
 
 
-    return baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_heating_load_hourly_mmbtu, \
+    return baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+           full_ff_dss50_hourly_mw, \
            full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
            solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh,
 

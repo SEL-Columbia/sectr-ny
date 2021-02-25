@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from glob import glob
 from scripts.utils import (get_args, load_timeseries, return_tx_dict,
-                           btmpv_capacity_projection, return_costs_for_model)
+                   btmpv_capacity_projection, return_costs_for_model)
 
 
 def load_ts_based_results(args, processed_df):
@@ -296,9 +296,10 @@ def cost_calculations(args, cap_results_df, processed_df):
 def raw_results_retrieval(args, m, model_config, scen_ix):
     T = args.num_hours
 
-    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_heating_load_hourly_mmbtu, \
+    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+    full_ff_dss50_hourly_mw, \
     full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh, = load_timeseries(args)
+    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 
@@ -440,7 +441,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     ## Find the electrification ratio
     # Heating electrification rate
-    full_therm_heating_load_nodal_avg = np.mean(full_heating_load_hourly_mmbtu, axis=0)
+    full_therm_heating_load_nodal_avg = np.mean(full_ff_heating_load_hourly_mw, axis=0)
     therm_heating_load_nodal_avg = np.array([full_therm_heating_load_nodal_avg[i] *
                                              (1 - cap_results_df[f'eheating_rate_node_{i+1}'])
                                              for i in range(args.num_nodes)])
@@ -490,7 +491,8 @@ def full_results_processing(args):
     T = args.num_hours
 
     # Retrieve necessary model timeseries and dictionary of existing transmission parameters
-    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_heating_load_hourly_mmbtu, \
+    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+    full_ff_dss50_hourly_mw, \
     full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
     solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh = load_timeseries(args)
 

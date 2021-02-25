@@ -17,6 +17,7 @@ same_eheating_ev_rate_boolean: True   # True: same electrification rates for hea
 same_nodal_elecfx_rates_boolean: True  # True: each node has same electrification rate; Only use false with config = 1
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
+dss_synthetic_ts: False          # True: use 50% DSS synthetic TS, False: full heating electrification
 gt_based_on_current: True        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
 
@@ -137,7 +138,8 @@ nominal_trans_cost_mwh: 0.01
 ## Emissions assumptions -- all quantities measured in CO2e
 baseline_emissions_mmt: 302.770
 ng_e_factor_t_mwh: 0.3966601
-flex_heating_emissions_mmt: [36.518, 14.457, 37.044, 13.641]
+flex_space_heating_emissions_mmt: [36.518, 14.457, 37.044, 13.641] # wait to be updated
+flex_const_heating_emissions_mmt: [0,0,0,0] # wait to be updaated
 flex_trans_emissions_mmt: 73.703
 fixed_trans_emissions_mmt: 21.956
 fixed_ind_emissions_mmt: 19.365

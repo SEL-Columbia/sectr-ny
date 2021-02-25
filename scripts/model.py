@@ -30,9 +30,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     trange = range(T)
 
     # Load in time-series data
-    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_heating_load_hourly_mmbtu, \
+    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+    full_ff_dss50_hourly_mw, \
     full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh, = load_timeseries(args)
+    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh = load_timeseries(args)
 
     # Load in formatted costs for variable assignment
     cost_dict = return_costs_for_model(args)
@@ -381,9 +382,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     ## Collect thermal heating and transport demands for the electrification constraint
 
     # Get the full heating thermal load
-    full_therm_heating_load_nodal_avg = np.mean(full_heating_load_hourly_mmbtu, axis=0)
-    therm_heating_load_nodal_avg = quicksum(full_therm_heating_load_nodal_avg[i] *
-                                                   (1-model_data_eheating_ratio[i]) for i in range(args.num_nodes))
+    full_therm_heating_load_nodal_avg = np.mean(full_ff_heating_load_hourly_mw, axis=0)
+    full_dss50_therm_heating_load_nodal_avg = np.mean(full_ff_dss50_hourly_mw, axis=0)
+    therm_heating_load_avg = quicksum(full_therm_heating_load_nodal_avg[i] *
+                                      (1-model_data_eheating_ratio[i]) for i in range(args.num_nodes))
 
     # Find the average eheating and EV load
     eheating_mean_load_region = np.mean(full_heating_load_hourly_mw, axis=0)
@@ -401,14 +403,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     # We constrain the thermal heating load with (1-elec_ratio) a
     if model_config == 0 or model_config == 2:
         if args.elecfx_constraint_ge:
-            m.addConstr(therm_heating_load_nodal_avg - np.sum(full_therm_heating_load_nodal_avg) *
-                        (1-elec_ratio) >= 0)
+            m.addConstr(therm_heating_load_avg - np.sum(full_therm_heating_load_nodal_avg) * (1-elec_ratio) >= 0)
             m.addConstr(weighted_ev_elecfx_ratio - elec_ratio >= 0)
 
-
         else:
-            m.addConstr(therm_heating_load_nodal_avg - np.sum(full_therm_heating_load_nodal_avg) *
-                        (1-elec_ratio) == 0)
+            m.addConstr(therm_heating_load_avg - np.sum(full_therm_heating_load_nodal_avg) * (1-elec_ratio) == 0)
             m.addConstr(weighted_ev_elecfx_ratio - elec_ratio == 0)
 
     # Collect all the the all btmpv generation
@@ -452,8 +451,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
     # Sum total emissions and constrain to the ghg_target
     m.addConstr((elec_emissions +
-                quicksum(args.flex_heating_emissions_mmt[i] * (1 - model_data_eheating_ratio[i]) for i in range(
-                    args.num_nodes)) +
+                quicksum((args.flex_space_heating_emissions_mmt[i] + args.flex_const_heating_emissions_mmt[i]) *
+                         (1 - model_data_eheating_ratio[i]) + int(args.dss_synthetic_ts) *
+                         args.flex_space_heating_emissions_mmt[i] * model_data_eheating_ratio[i] *
+                         full_dss50_therm_heating_load_nodal_avg[i] / full_therm_heating_load_nodal_avg[i]
+                         for i in range(args.num_nodes)) +
                 args.flex_trans_emissions_mmt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
                                                          for i in range(args.num_nodes)) +
                 args.fixed_trans_emissions_mmt +
