@@ -297,9 +297,9 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     T = args.num_hours
 
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
-    full_ff_dss50_hourly_mw, \
-    full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh = load_timeseries(args)
+    full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
+    offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
+    flex_hydro_daily_mwh = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 
@@ -492,9 +492,9 @@ def full_results_processing(args):
 
     # Retrieve necessary model timeseries and dictionary of existing transmission parameters
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
-    full_ff_dss50_hourly_mw, \
-    full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh = load_timeseries(args)
+    full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
+    offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
+    flex_hydro_daily_mwh = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 

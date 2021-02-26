@@ -121,9 +121,9 @@ def load_timeseries(args):
 
 
     return baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
-           full_ff_dss50_hourly_mw, \
-           full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-           solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh,
+           full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
+           offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
+           flex_hydro_daily_mwh
 
 def return_costs_for_model(args):
     '''

@@ -80,7 +80,7 @@ h2_p2e_ratio_range: [0, 1e100] # Input min and max; if same, model will adjust c
 
 
 ## Gas turbine assumption
-# Shared (assumption applt to new and existing GT)
+# Shared (assumption applies to new and existing GT)
 gt_capex_mw: [0.772e6, 0.772e6, 1.034e6, 1.034e6]
 gt_fuel_cost_mwh: [9.86, 13.79, 12.54, 12.35]
 # New GT assumptions (costs and efficiencies)
