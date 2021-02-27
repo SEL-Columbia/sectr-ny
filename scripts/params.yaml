@@ -138,8 +138,8 @@ nominal_trans_cost_mwh: 0.01
 ## Emissions assumptions -- all quantities measured in CO2e
 baseline_emissions_mmt: 302.770
 ng_e_factor_t_mwh: 0.3966601
-flex_space_heating_emissions_mmt: [36.518, 14.457, 37.044, 13.641] # wait to be updated
-flex_const_heating_emissions_mmt: [0,0,0,0] # wait to be updaated
+flex_space_heating_emissions_mmt: [26.305, 12.388, 27.026, 11.749] # wait to be updated
+flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660] # wait to be updaated
 flex_trans_emissions_mmt: 73.703
 fixed_trans_emissions_mmt: 21.956
 fixed_ind_emissions_mmt: 19.365

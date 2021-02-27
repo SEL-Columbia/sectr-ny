@@ -94,7 +94,9 @@ def load_timeseries(args):
                                                            index_col=0))[0:T]
     full_ff_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                        index_col=0))[0:T]
-    full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/FF_DSS50_FILE',
+
+    ## THIS NEEDS TO BE UPDATED ONCE MIKE UPDATES HIS FILES
+    full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                    index_col=0))[0:T]
 
     ## Set average hydropower generation
