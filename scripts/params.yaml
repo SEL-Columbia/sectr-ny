@@ -1,16 +1,16 @@
 # Model run parameters
-data_dir: './data_uploads'
-results_dir: './model_results'
+data_dir: '../data_uploads'
+results_dir: '../model_results'
 
 # output scenario name
 scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
-re_cost_scenario: 'medium'       # or 'low' for low renewable generator and battery storage costs
+re_cost_scenario: 'low'          # or 'low' for low renewable generator and battery storage costs
 fix_re_cap_boolean: False        # True: fix wind, solar, battery capacity
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
-nuclear_boolean: True           # True: allow nuclear; False: no nuclear
+nuclear_boolean: False           # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
 new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
@@ -25,8 +25,8 @@ ev_set_profile_boolean: True     # True: Used user-provided EV charging profile;
 proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
-num_years: 1
-num_hours: 8760
+num_years: 6
+num_hours: 52608
 num_nodes: 4
 i_rate: 0.05
 
@@ -139,7 +139,7 @@ nominal_trans_cost_mwh: 0.01
 baseline_emissions_mmt: 302.770
 ng_e_factor_t_mwh: 0.3966601
 flex_space_heating_emissions_mmt: [26.305, 12.388, 27.026, 11.749] # wait to be updated
-flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660] # wait to be updaated
+flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660] # wait to be updated
 flex_trans_emissions_mmt: 73.703
 fixed_trans_emissions_mmt: 21.956
 fixed_ind_emissions_mmt: 19.365

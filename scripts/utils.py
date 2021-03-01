@@ -83,14 +83,15 @@ def load_timeseries(args):
     flex_hydro_daily_mwh  = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))[0:int(T/24)]
     fixed_hydro_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))[0:T]
 
+
     # Load baseline and full heating electric and thermal demand timeseries
     baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
                                                       index_col=0))[0:T]
     if args.dss_synthetic_ts:
-        full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw_dss50.csv',
+        full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw_dss50.csv',
                                                            index_col=0))[0:T]
     else:
-        full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
+        full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
                                                            index_col=0))[0:T]
     full_ff_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                        index_col=0))[0:T]
@@ -122,7 +123,7 @@ def load_timeseries(args):
         btmpv_pot_hourly    = np.where(btmpv_pot_hourly < min_val, 0, btmpv_pot_hourly)
 
 
-    return baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+    return baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
            full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
            offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
            flex_hydro_daily_mwh

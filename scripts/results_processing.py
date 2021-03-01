@@ -460,6 +460,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     ## Add additional results to the dataframe
     cap_results_df['model_config'] = model_config
+    cap_results_df['re_cost_scenario'] = args.re_cost_scenario
     cap_results_df['lct'] = lct
     cap_results_df['ghg_reduction'] = dghg_target
     cap_results_df['heating_elecfx_rate'] = heating_elecfx
@@ -540,6 +541,7 @@ def full_results_processing(args):
     # Add load met by btm solar
     processed_df['btmpv_load_mw'] = - np.sum(btm_cap * np.mean(btmpv_pot_hourly, axis=0), axis=1)
     # Continue parameterizing the processed dataframe with other model configuration parameters
+    processed_df['re_cost_scenario'] = [int(args.re_cost_scenario)] * len(cap_results_df)
     processed_df['rgt_boolean'] = [int(args.rgt_boolean)] * len(cap_results_df)
     processed_df['nuc_boolean'] = [int(args.nuclear_boolean)] * len(cap_results_df)
     processed_df['h2_boolean'] = [int(args.h2_boolean)] * len(cap_results_df)
