@@ -7,7 +7,7 @@ scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
-re_cost_scenario: 'low'          # or 'low' for low renewable generator and battery storage costs
+re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
 fix_re_cap_boolean: False        # True: fix wind, solar, battery capacity
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: False           # True: allow nuclear; False: no nuclear
@@ -18,8 +18,11 @@ same_nodal_elecfx_rates_boolean: True  # True: each node has same electrificatio
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
 dss_synthetic_ts: False          # True: use 50% DSS synthetic TS, False: full heating electrification
-gt_based_on_current: True        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
+gt_based_on_current: False        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
+greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro to zero
+copper_plate_boolean: False      # True: Set copper plate transmission condition
+same_nodal_costs: False          # True: Set nodal costs to be the same
 
 # input year
 proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw

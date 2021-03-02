@@ -434,9 +434,10 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
         total_ev_demand = np.sum([cap_results_df[f'ev_rate_node_{i+1}'] for i in range((args.num_nodes))] *
                                   np.sum(full_ev_load_hourly_mw, axis=0))/cf_mult
         total_imports = np.sum([ts_results_df[f'elec_import_node_{i+1}'] for i in range(args.num_nodes)])/cf_mult
+        total_btm_gen = np.sum([ts_results_df[f'btmpv_uc_gen_node_{i+1}'] for i in range(args.num_nodes)])/cf_mult
 
-        demand_for_lct = np.sum(baseline_demand_hourly_mw) + total_heat_demand + total_ev_demand - total_imports
-
+        demand_for_lct = (np.sum(baseline_demand_hourly_mw) + total_heat_demand + total_ev_demand - total_imports -
+                          total_btm_gen)
         lct = 1 - (gas_gen + biofuel_gen) / demand_for_lct
 
     ## Find the electrification ratio
@@ -541,7 +542,7 @@ def full_results_processing(args):
     # Add load met by btm solar
     processed_df['btmpv_load_mw'] = - np.sum(btm_cap * np.mean(btmpv_pot_hourly, axis=0), axis=1)
     # Continue parameterizing the processed dataframe with other model configuration parameters
-    processed_df['re_cost_scenario'] = [int(args.re_cost_scenario)] * len(cap_results_df)
+    processed_df['re_cost_scenario'] = [args.re_cost_scenario] * len(cap_results_df)
     processed_df['rgt_boolean'] = [int(args.rgt_boolean)] * len(cap_results_df)
     processed_df['nuc_boolean'] = [int(args.nuclear_boolean)] * len(cap_results_df)
     processed_df['h2_boolean'] = [int(args.h2_boolean)] * len(cap_results_df)
@@ -550,6 +551,11 @@ def full_results_processing(args):
     processed_df['elec_constraint_ge'] = [int(args.elecfx_constraint_ge)] * len(cap_results_df)
     processed_df['gt_based_on_current'] = [int(args.gt_based_on_current)] * len(cap_results_df)
     processed_df['ev_set_profile_boolean'] = [int(args.ev_set_profile_boolean)] * len(cap_results_df)
+    processed_df['ev_set_profile_boolean'] = [int(args.ev_set_profile_boolean)] * len(cap_results_df)
+    processed_df['greenfield_boolean'] = [int(args.greenfield_boolean)] * len(cap_results_df)
+    processed_df['copper_plate_boolean'] = [int(args.copper_plate_boolean)] * len(cap_results_df)
+    processed_df['same_nodal_costs'] = [int(args.same_nodal_costs)] * len(cap_results_df)
+
     # Add the electrification rates by node and by EV/heating
     for ix in range(args.num_nodes):
         processed_df[f'heating_elecfx_rate_node_{ix+1}'] = cap_results_df[f'eheating_rate_node_{ix+1}']
@@ -591,11 +597,11 @@ def full_results_processing(args):
     # average demand for renewable depend on
     avg_mwh_for_rg = total_mwh_for_lcoe/T + args.btmpv_count_re * btm_avg_mwh - \
                      processed_df['elec_import_regional_avg_mw']
-    processed_df['model_rg'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
+    processed_df['model_rgt'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
                                     processed_df['gt_new_util_regional_avg_mw'] +
                                     processed_df['biofuel_util_regional_avg_mw'] +
                                     args.nuclear_boolean * np.sum(args.nuc_avg_gen_mw)) / avg_mwh_for_rg
-    processed_df['model_lc'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
+    processed_df['model_lct'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
                                     processed_df['gt_new_util_regional_avg_mw'] +
                                     processed_df['biofuel_util_regional_avg_mw']) / avg_mwh_for_rg
 

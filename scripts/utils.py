@@ -269,11 +269,20 @@ def return_tx_dict(args):
     # Dictionary for transmission parameters
     tx_dict = {}
 
+    # Copper plate parameters
+    cu_tx_limit = 1e6
+    cu_tx_cost = 1
+
     # Create a transmission cost containing existing limits and costs information
     for i in range(len(tx_matrix_limits)):
         for j in range(len(tx_matrix_limits.columns)):
             if tx_matrix_limits.iloc[i, j] > 0:
-                tx_dict[f'existing_tx_limit_{i+1}_{j+1}'] = (tx_matrix_limits.iloc[i, j], args.num_years *
+                if args.copper_plate_boolean:
+                    print(f'Copper plate transmission assumptions set')
+                    tx_dict[f'existing_tx_limit_{i + 1}_{j + 1}'] = (cu_tx_limit, cu_tx_cost)
+                    args.__dict__['trans_loss'] = 0
+                else:
+                    tx_dict[f'existing_tx_limit_{i+1}_{j+1}'] = (tx_matrix_limits.iloc[i, j], args.num_years *
                                                                  (annualization_cap *
                                                                   tx_matrix_install_costs.iloc[i, j] +
                                                                   tx_matrix_om_costs.iloc[i, j]))
