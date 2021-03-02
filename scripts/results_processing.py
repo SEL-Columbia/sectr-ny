@@ -335,7 +335,6 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     for ix in range(args.num_nodes):
         cap_results_df[f'btm_cap_node_{ix+1}'] = btmpv_cap[ix]
 
-
     ts_columns = ['ev_charging_node_', 'energy_balance_slack_node_', 'flex_hydro_node_', 'batt_charge_node_',
                   'batt_discharge_node_',
                   'batt_level_node_', 'h2_charge_node_', 'h2_discharge_node_', 'h2_level_node_',
@@ -426,19 +425,19 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     else: # model_config == 2 or model_config == 3:
         gas_gen = np.sum([ts_results_df[f'gt_new_util_node_{i+1}'] + ts_results_df[f'gt_existing_util_node_{i+1}']
                           for i in range(args.num_nodes)])/cf_mult
-
         biofuel_gen = np.sum([ts_results_df[f'biofuel_util_node_{i+1}'] for i in range(args.num_nodes)])/cf_mult
-
-        total_heat_demand = np.sum([cap_results_df[f'eheating_rate_node_{i+1}'] for i in range((args.num_nodes))] *
-                                    np.sum(full_heating_load_hourly_mw, axis=0))/cf_mult
-        total_ev_demand = np.sum([cap_results_df[f'ev_rate_node_{i+1}'] for i in range((args.num_nodes))] *
-                                  np.sum(full_ev_load_hourly_mw, axis=0))/cf_mult
+        total_heat_demand = np.sum([ts_results_df[f'heating_demand_node_{i+1}'] for i in range((args.num_nodes))]) \
+                                   / cf_mult
+        total_ev_demand = np.sum([ts_results_df[f'ev_charging_node_{i+1}'] for i in range((args.num_nodes))]) \
+                                   / cf_mult
         total_imports = np.sum([ts_results_df[f'elec_import_node_{i+1}'] for i in range(args.num_nodes)])/cf_mult
         total_btm_gen = np.sum([ts_results_df[f'btmpv_uc_gen_node_{i+1}'] for i in range(args.num_nodes)])/cf_mult
+        total_nuclear_gen = np.sum(int(args.nuclear_boolean) * int(args.rgt_boolean) * np.array(args.nuc_avg_gen_mw)
+                                   * T)
 
         demand_for_lct = (np.sum(baseline_demand_hourly_mw) + total_heat_demand + total_ev_demand - total_imports -
                           total_btm_gen)
-        lct = 1 - (gas_gen + biofuel_gen) / demand_for_lct
+        lct = 1 - (gas_gen + biofuel_gen + total_nuclear_gen) / demand_for_lct
 
     ## Find the electrification ratio
     # Heating electrification rate
@@ -595,8 +594,7 @@ def full_results_processing(args):
 
     ## calculate the renewable electricity ratio / low-carbon electricity ratio
     # average demand for renewable depend on
-    avg_mwh_for_rg = total_mwh_for_lcoe/T + args.btmpv_count_re * btm_avg_mwh - \
-                     processed_df['elec_import_regional_avg_mw']
+    avg_mwh_for_rg = total_mwh_for_lcoe/T - processed_df['elec_import_regional_avg_mw']
     processed_df['model_rgt'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
                                     processed_df['gt_new_util_regional_avg_mw'] +
                                     processed_df['biofuel_util_regional_avg_mw'] +
@@ -612,7 +610,7 @@ def full_results_processing(args):
 
 if __name__ == '__main__':
     args = get_args()
-    args.__dict__['dir_time'] = '20210223-110622'
+    args.__dict__['dir_time'] = '20210302-103810'
 
 
     full_results_processing(args)
