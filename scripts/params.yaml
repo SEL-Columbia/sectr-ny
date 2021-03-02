@@ -1,31 +1,35 @@
 # Model run parameters
-data_dir: './data_uploads'
-results_dir: './model_results'
+data_dir: '../data_uploads'
+results_dir: '../model_results'
 
 # output scenario name
 scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
-re_cost_scenario: 'medium'       # or 'low' for low renewable generator and battery storage costs
+re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
 fix_re_cap_boolean: False        # True: fix wind, solar, battery capacity
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
-nuclear_boolean: True           # True: allow nuclear; False: no nuclear
+nuclear_boolean: False           # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
 new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
 same_nodal_elecfx_rates_boolean: True  # True: each node has same electrification rate; Only use false with config = 1
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
-gt_based_on_current: True        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
+dss_synthetic_ts: False          # True: use 50% DSS synthetic TS, False: full heating electrification
+gt_based_on_current: False        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
+greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro to zero
+copper_plate_boolean: False      # True: Set copper plate transmission condition
+same_nodal_costs: False          # True: Set nodal costs to be the same
 
 # input year
 proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
-num_years: 1
-num_hours: 8760
+num_years: 6
+num_hours: 52608
 num_nodes: 4
 i_rate: 0.05
 
@@ -79,7 +83,7 @@ h2_p2e_ratio_range: [0, 1e100] # Input min and max; if same, model will adjust c
 
 
 ## Gas turbine assumption
-# Shared (assumption applt to new and existing GT)
+# Shared (assumption applies to new and existing GT)
 gt_capex_mw: [0.772e6, 0.772e6, 1.034e6, 1.034e6]
 gt_fuel_cost_mwh: [9.86, 13.79, 12.54, 12.35]
 # New GT assumptions (costs and efficiencies)
@@ -137,7 +141,8 @@ nominal_trans_cost_mwh: 0.01
 ## Emissions assumptions -- all quantities measured in CO2e
 baseline_emissions_mmt: 302.770
 ng_e_factor_t_mwh: 0.3966601
-flex_heating_emissions_mmt: [36.518, 14.457, 37.044, 13.641]
+flex_space_heating_emissions_mmt: [26.305, 12.388, 27.026, 11.749] # wait to be updated
+flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660] # wait to be updated
 flex_trans_emissions_mmt: 73.703
 fixed_trans_emissions_mmt: 21.956
 fixed_ind_emissions_mmt: 19.365

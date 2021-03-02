@@ -40,12 +40,13 @@ def btmpv_capacity_projection(year):
     :param year: year
     :return: BTM capacity
     '''
-    K = 10982023
+    K = 10982.023
     Q = 0.0001680925
     B = 0.1202713
     M = 1995.067
     v = 0.000004955324
-    tt_btmpv_cap = K / (1 + Q * math.exp(-B * (year - M))) ** (1 / v) / 1000
+    tt_btmpv_cap = K / (1 + Q * math.exp(-B * (year - M))) ** (1 / v)
+
     return tt_btmpv_cap
 
 def set_gurobi_model_params(args, model):
@@ -83,13 +84,21 @@ def load_timeseries(args):
     flex_hydro_daily_mwh  = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))[0:int(T/24)]
     fixed_hydro_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))[0:T]
 
+
     # Load baseline and full heating electric and thermal demand timeseries
     baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
                                                       index_col=0))[0:T]
-    full_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
-                                                      index_col=0))[0:T]
-    full_heating_load_hourly_mmbtu = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mmbtu.csv',
+    if args.dss_synthetic_ts:
+        full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_dss50_hourly_mw.csv',
+                                                           index_col=0))[0:T]
+    else:
+        full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
+                                                           index_col=0))[0:T]
+
+    full_ff_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                        index_col=0))[0:T]
+    full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_dss50_hourly_mw.csv',
+                                                   index_col=0))[0:T]
 
     ## Set average hydropower generation
     hydro_avg_gen_mw = np.mean(fixed_hydro_hourly_mw, axis=0) + np.mean(flex_hydro_daily_mwh, axis=0)/24
@@ -114,9 +123,10 @@ def load_timeseries(args):
         btmpv_pot_hourly    = np.where(btmpv_pot_hourly < min_val, 0, btmpv_pot_hourly)
 
 
-    return baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_heating_load_hourly_mmbtu, \
-           full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-           solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh,
+    return baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+           full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
+           offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
+           flex_hydro_daily_mwh
 
 def return_costs_for_model(args):
     '''
@@ -259,11 +269,20 @@ def return_tx_dict(args):
     # Dictionary for transmission parameters
     tx_dict = {}
 
+    # Copper plate parameters
+    cu_tx_limit = 1e6
+    cu_tx_cost = 1
+
     # Create a transmission cost containing existing limits and costs information
     for i in range(len(tx_matrix_limits)):
         for j in range(len(tx_matrix_limits.columns)):
             if tx_matrix_limits.iloc[i, j] > 0:
-                tx_dict[f'existing_tx_limit_{i+1}_{j+1}'] = (tx_matrix_limits.iloc[i, j], args.num_years *
+                if args.copper_plate_boolean:
+                    print(f'Copper plate transmission assumptions set')
+                    tx_dict[f'existing_tx_limit_{i + 1}_{j + 1}'] = (cu_tx_limit, cu_tx_cost)
+                    args.__dict__['trans_loss'] = 0
+                else:
+                    tx_dict[f'existing_tx_limit_{i+1}_{j+1}'] = (tx_matrix_limits.iloc[i, j], args.num_years *
                                                                  (annualization_cap *
                                                                   tx_matrix_install_costs.iloc[i, j] +
                                                                   tx_matrix_om_costs.iloc[i, j]))

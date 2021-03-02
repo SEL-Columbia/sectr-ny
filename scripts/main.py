@@ -10,17 +10,35 @@ if __name__ == '__main__':
 
     dir_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     args.__dict__['dir_time'] = dir_time
-    # args.__dict__['dir_time'] = '20210217-110154'
 
 
     ### --- INPUT the model_config and the numbers in option 0, 1, 2, 3 --- ###
     # Define model config and set of heating, EV loads, and/or GHG reduction target appropriately
-    model_config = 1
+    model_config = 0
 
     # 0: LCT + Elec. specified, GHG returned
     if model_config == 0:
-        elec_ratios  = [0.5, 0.8]
-        lowc_targets = [0.5, 0.8]
+        # lowc_targets = [
+        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+        #                 ]
+        # elec_ratios  = [
+        #                 0, 0, 0, 0, 0, 0, 0,
+        #                 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+        #                 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4,
+        #                 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6,
+        #                 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8,
+        #                 1, 1, 1, 1, 1, 1, 1
+        #                 ]
+
+        lowc_targets = [0.7]
+        elec_ratios = [0.4]
+
+
         dghg_targets = [np.nan]*len(elec_ratios) # indeterminate
 
     # 1: LCT + GHG specified, Elec. returned
@@ -31,8 +49,8 @@ if __name__ == '__main__':
 
     # 2: Elec. + GHG specified, LCT returned.
     elif model_config  == 2:
-        dghg_targets    = [0.4, 0.6]
-        elec_ratios = [0.6, 0.8]
+        dghg_targets    = [0.4, 0.4]
+        elec_ratios = [0.3, 0.6]
         lowc_targets   = [np.nan]*len(dghg_targets) # indeterminate
 
     # 3: Minimize LCOE for GHG specified, LCT/RG and Elec. returned

@@ -30,9 +30,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     trange = range(T)
 
     # Load in time-series data
-    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_heating_load_hourly_mmbtu, \
-    full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, offshore_pot_hourly, \
-    solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, flex_hydro_daily_mwh, = load_timeseries(args)
+    baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+    full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
+    offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
+    flex_hydro_daily_mwh = load_timeseries(args)
 
     # Load in formatted costs for variable assignment
     cost_dict = return_costs_for_model(args)
@@ -378,12 +379,13 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(model_data_ev_ratio[i] == model_data_ev_ratio[i + 1])
 
     m.update()
-    ## Collect thermal heating and transport demands for the electrification constraint
+    ## Collect ff heating and transport demands for the electrification constraint
 
-    # Get the full heating thermal load
-    full_therm_heating_load_nodal_avg = np.mean(full_heating_load_hourly_mmbtu, axis=0)
-    therm_heating_load_nodal_avg = quicksum(full_therm_heating_load_nodal_avg[i] *
-                                                   (1-model_data_eheating_ratio[i]) for i in range(args.num_nodes))
+    # Get the full heating ff load
+    full_ff_heating_load_nodal_avg = np.mean(full_ff_heating_load_hourly_mw, axis=0)
+    full_dss50_ff_heating_load_nodal_avg = np.mean(full_ff_dss50_hourly_mw, axis=0)
+    ff_heating_load_avg = quicksum(full_ff_heating_load_nodal_avg[i] *
+                                      (1-model_data_eheating_ratio[i]) for i in range(args.num_nodes))
 
     # Find the average eheating and EV load
     eheating_mean_load_region = np.mean(full_heating_load_hourly_mw, axis=0)
@@ -392,23 +394,20 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     ev_load_avg = quicksum(full_ev_avg_load_hourly_mw[i] * model_data_ev_ratio[i]
                               for i in range(args.num_nodes))
 
-    # Weighted (thermal?) EV electrification ratio based on the EV load distribution
+    # Weighted FF EV electrification ratio based on the EV load distribution
     weighted_ev_elecfx_ratio = quicksum(args.icv_load_dist[i] * model_data_ev_ratio[i] for i in range(
         args.num_nodes))
 
     # Constrain the electrification fractions to be either == to >= what's specified by elec_ratio
     # The electrification ratio is applied to the amounts of electrified load, eheating and vehicle
-    # We constrain the thermal heating load with (1-elec_ratio) a
+    # We constrain the ff heating load with (1-elec_ratio) a
     if model_config == 0 or model_config == 2:
         if args.elecfx_constraint_ge:
-            m.addConstr(therm_heating_load_nodal_avg - np.sum(full_therm_heating_load_nodal_avg) *
-                        (1-elec_ratio) >= 0)
+            m.addConstr(ff_heating_load_avg - np.sum(full_ff_heating_load_nodal_avg) * (1-elec_ratio) >= 0)
             m.addConstr(weighted_ev_elecfx_ratio - elec_ratio >= 0)
 
-
         else:
-            m.addConstr(therm_heating_load_nodal_avg - np.sum(full_therm_heating_load_nodal_avg) *
-                        (1-elec_ratio) == 0)
+            m.addConstr(ff_heating_load_avg - np.sum(full_ff_heating_load_nodal_avg) * (1-elec_ratio) == 0)
             m.addConstr(weighted_ev_elecfx_ratio - elec_ratio == 0)
 
     # Collect all the the all btmpv generation
@@ -450,15 +449,28 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     elec_emissions = (full_gt_new_sum_mwh / args.new_gt_efficiency + full_gt_existing_sum_mwh /
                       args.existing_gt_efficiency) * args.ng_e_factor_t_mwh / (1e6 * args.num_years)
 
+    # Heating emissions
+    heating_emissions = quicksum((args.flex_space_heating_emissions_mmt[i] + args.flex_const_heating_emissions_mmt[i])
+                                 * (1 - model_data_eheating_ratio[i]) for i in range(args.num_nodes))
+
+    # Accounting for heating emissions from DSS
+    heating_emissions_dss = quicksum(int(args.dss_synthetic_ts) *
+                         args.flex_space_heating_emissions_mmt[i] * model_data_eheating_ratio[i] *
+                         full_dss50_ff_heating_load_nodal_avg[i] / full_ff_heating_load_nodal_avg[i]
+                         for i in range(args.num_nodes))
+
+    # Find transport emissions
+    trans_emissions = args.flex_trans_emissions_mmt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
+                                                         for i in range(args.num_nodes))
+
     # Sum total emissions and constrain to the ghg_target
     m.addConstr((elec_emissions +
-                quicksum(args.flex_heating_emissions_mmt[i] * (1 - model_data_eheating_ratio[i]) for i in range(
-                    args.num_nodes)) +
-                args.flex_trans_emissions_mmt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
-                                                         for i in range(args.num_nodes)) +
-                args.fixed_trans_emissions_mmt +
-                args.fixed_ind_emissions_mmt +
-                waste_emissions_mmt) == (1 - ghg_target) * args.baseline_emissions_mmt,
+                 heating_emissions +
+                 heating_emissions_dss +
+                 trans_emissions +
+                 args.fixed_trans_emissions_mmt +
+                 args.fixed_ind_emissions_mmt +
+                 waste_emissions_mmt) == (1 - ghg_target) * args.baseline_emissions_mmt,
                 name='ghg_emissions_constraint')
 
     m.update()
@@ -480,7 +492,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             var_it = all_vars_init[i]
             var_it.setAttr('Obj', obj_coeffs_init[i] / 1e9)
 
-        print(const_costs_total)
         ## Create C-C transform variable and add to objective function with const_costs_total as coefficient
         cc_transform = m.addVar(lb=0, obj=const_costs_total, name='cc_transform')
         m.update()
@@ -488,7 +499,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         ## Under transform, the negative of the RHS vector becomes the constraint coefficients for cc_transform and the RHS becomes zero
         cc_b = m.getAttr('RHS')
         cc_constr_list = m.getConstrs()
-        print(f'length of constraints: {len(cc_constr_list)}')
 
         for i in range(len(cc_constr_list)):
             m.chgCoeff(cc_constr_list[i], m.getVarByName('cc_transform'), -cc_b[i])
