@@ -60,8 +60,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
     # Determine BTM PV and waste emissions based on whether the projection year is 2019
     if args.proj_year == 2019:
-        btmpv_cap_mw = args.btmpv_existing_mw
-        waste_emissions_mmt = args.waste_emissions
+        btmpv_cap_mw = args.btmpv_cap_existing_mw
+        waste_emissions_mmt = args.waste_emissions_mmt
     else:
         btmpv_state_cap_mw = btmpv_capacity_projection(args.proj_year)
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]

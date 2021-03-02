@@ -81,8 +81,10 @@ def load_timeseries(args):
     offshore_pot_hourly   = np.array(pd.read_csv(f'{args.data_dir}/offshore_power_hourly_norm.csv', index_col=0))[0:T]
     solar_pot_hourly      = np.array(pd.read_csv(f'{args.data_dir}/gridpv_power_hourly_norm.csv', index_col=0))[0:T]
     btmpv_pot_hourly      = np.array(pd.read_csv(f'{args.data_dir}/btmpv_power_hourly_norm.csv', index_col=0))[0:T]
-    flex_hydro_daily_mwh  = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))[0:int(T/24)]
-    fixed_hydro_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))[0:T]
+
+    # Set hydro to 0 for the Greenfield case
+    flex_hydro_daily_mwh  = np.zeros((int(T/24), args.num_nodes))
+    fixed_hydro_hourly_mw = np.zeros((T, args.num_nodes))
 
 
     # Load baseline and full heating electric and thermal demand timeseries
@@ -255,8 +257,10 @@ def return_tx_dict(args):
     :param args: args dictionary
     :return: tx_dict, dictionary containing relevant tx limit + cost information
     '''
-    # Load transmission cost and current capacity parameters
-    tx_matrix_limits = pd.read_excel(f'{args.data_dir}/transmission_matrix_limits.xlsx', header=0, index_col=0)
+    ## Load transmission cost and current capacity parameters
+    # For this case, load the greenfield xlsx
+    tx_matrix_limits = pd.read_excel(f'{args.data_dir}/transmission_matrix_limits_greenfield.xlsx', header=0,
+                                     index_col=0)
     tx_matrix_install_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_install_costs.xlsx', header=0,
                                             index_col=0)
     tx_matrix_om_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_om_costs.xlsx', header=0,

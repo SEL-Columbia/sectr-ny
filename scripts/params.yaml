@@ -39,9 +39,9 @@ solar_capex_medium_mw: [1.341e6, 1.341e6, 1.593e6, 1.593e6]
 solar_capex_low_mw: [1.006e6, 1.006e6, 1.195e6, 1.195e6]
 solar_om_cost_mw_yr: 10.4e3
 # Capacities
-solar_cap_existing_mw: [0,  0,  0,  56.5]
+solar_cap_existing_mw: [0,  0,  0,  0] # changed for greenfield
 solar_cap_limit_mw: [212710, 44899, 481, 2743]
-btmpv_cap_existing_mw: [562, 523, 293, 259]
+btmpv_cap_existing_mw: [0, 0, 0, 0] # changed for greenfield
 btmpv_dist: [0.3192, 0.3577, 0.1659, 0.1572]
 
 ## Wind assumptions
@@ -53,7 +53,7 @@ offshore_capex_medium_mw: 3.583e6
 offshore_capex_low_mw: 2.256e6
 offshore_om_cost_mw_yr: 3.8e4
 # Capacities
-onshore_cap_existing_mw: [1985.25, 0, 0, 0]
+onshore_cap_existing_mw: [0, 0, 0, 0] # changed for greenfield
 onshore_cap_limit_mw: [32402, 4376, 0, 0]
 offshore_cap_existing_mw: [0, 0, 0, 0]
 offshore_cap_total_limit_mw: 57938
@@ -68,8 +68,8 @@ battery_capex_low_mwh: 144e3
 battery_eff: 0.946 # One way - same efficiency on charge and discharge
 battery_self_discharge: 0.001
 battery_p2e_ratio_range: [0.25, 0.25] # Input min and max; if same, model will adjust constraint accordingly
-existing_battery_cap_mw:  [3, 20, 0, 10]
-existing_battery_cap_mwh: [5.2, 80, 0, 65]
+existing_battery_cap_mw:  [0, 0, 0, 0]  # changed for greenfield
+existing_battery_cap_mwh: [0, 0, 0, 0]  # changed for greenfield
 
 ## H2 storage assumptions
 # Cost
@@ -93,25 +93,25 @@ new_gt_om_cost_mw_yr: 6.97e3
 new_gt_efficiency: 0.344
 # Existing GT assumptions (costs, existing capacity, efficiency, and addl. cap from simulations)
 existing_gt_startup_cost_mw: 79
-existing_gt_cap_mw: [3934.2, 8622.5, 10249.9, 4192.7]
+existing_gt_cap_mw: [0, 0, 0, 0] # changed for greenfield
 existing_gt_efficiency: 0.428
 current_scenario_addl_gt_cap: [0, 1132, 0, 867] # based on the 'current' scenario in the model
 
 ## nodal nuclear, hydro, and biofuel RE generation assumptions
 # Nuclear
 nuc_cost_mwh: [37.94, 0, 26.82, 0]
-nuc_cap_mw: [3536.8, 0, 0, 0] # current w/ IP: [3536.8, 0, 2311, 0]; 2030: [3536.8, 0, 0, 0]
-nuc_avg_gen_mw: [3207, 0, 0, 0] # current w/ IP: [3207, 0, 1906, 0]; 2030: [3207, 0, 0, 0]
+nuc_cap_mw: [0, 0, 0, 0] # current w/ IP: [3536.8, 0, 2311, 0]; 2030: [3536.8, 0, 0, 0], # changed for greenfield
+nuc_avg_gen_mw: [0, 0, 0, 0] # current w/ IP: [3207, 0, 1906, 0]; 2030: [3207, 0, 0, 0]  # changed for greenfield
 
 # Hydropower
 hydro_cost_mwh: [18.47, 28.02, 0, 0]
 #hydro_avg_gen_mw: [2723, 270, 0, 0]  # average generation
-hydro_cap_mw: [4717.4, 608.7, 0, 0]
-flex_hydro_cap_mw: [769.4, 608.7, 0, 0]
+hydro_cap_mw: [0, 0, 0, 0]  # changed for greenfield
+flex_hydro_cap_mw: [0, 0, 0, 0]  # changed for greenfield
 
 # Biofuel
-biofuel_cap_mw: [258.0, 45.0, 59.7, 142.2]
-biofuel_daily_gen_mwh: [3289.041, 473.425, 1046.575, 2445.479]
+biofuel_cap_mw: [0, 0, 0, 0]  # changed for greenfield
+biofuel_daily_gen_mwh: [0, 0, 0, 0]  # changed for greenfield
 biofuel_cost_mwh: [20.66, 27.41, 27.05, 32.29]
 
 ## Imported electricity assumptions
