@@ -40,12 +40,13 @@ def btmpv_capacity_projection(year):
     :param year: year
     :return: BTM capacity
     '''
-    K = 10982023
+    K = 10982.023
     Q = 0.0001680925
     B = 0.1202713
     M = 1995.067
     v = 0.000004955324
-    tt_btmpv_cap = K / (1 + Q * math.exp(-B * (year - M))) ** (1 / v) / 1000
+    tt_btmpv_cap = K / (1 + Q * math.exp(-B * (year - M))) ** (1 / v)
+
     return tt_btmpv_cap
 
 def set_gurobi_model_params(args, model):
@@ -88,16 +89,15 @@ def load_timeseries(args):
     baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
                                                       index_col=0))[0:T]
     if args.dss_synthetic_ts:
-        full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw_dss50.csv',
+        full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_dss50_hourly_mw.csv',
                                                            index_col=0))[0:T]
     else:
         full_elec_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/elec_heating_hourly_mw.csv',
                                                            index_col=0))[0:T]
+
     full_ff_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                        index_col=0))[0:T]
-
-    ## THIS NEEDS TO BE UPDATED ONCE MIKE UPDATES HIS FILES
-    full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
+    full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_dss50_hourly_mw.csv',
                                                    index_col=0))[0:T]
 
     ## Set average hydropower generation
