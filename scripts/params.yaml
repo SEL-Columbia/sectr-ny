@@ -20,7 +20,7 @@ elecfx_constraint_ge: False      # True: set the smallest electrification ratio 
 dss_synthetic_ts: False          # True: use 50% DSS synthetic TS, False: full heating electrification
 gt_based_on_current: False        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
-greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro to zero
+greenfield_boolean: True        # True: Set existing GT, solar, wind, tx, hydro to zero
 copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 
@@ -110,18 +110,18 @@ hydro_cap_mw: [0, 0, 0, 0]  # changed for greenfield
 flex_hydro_cap_mw: [0, 0, 0, 0]  # changed for greenfield
 
 # Biofuel
-biofuel_cap_mw: [0, 0, 0, 0]  # changed for greenfield
-biofuel_daily_gen_mwh: [0, 0, 0, 0]  # changed for greenfield
+biofuel_cap_mw: [0, 0, 0, 0] # changed for greenfield
+biofuel_daily_gen_mwh: [0, 0, 0, 0] # changed for greenfield
 biofuel_cost_mwh: [20.66, 27.41, 27.05, 32.29]
 
 ## Imported electricity assumptions
-import_limit_mw: [1500, 0, 1250, 0]  # 2030: [1500, 0, 1000, 0]; current: [1500, 0, 0, 0]
+import_limit_mw: [0, 0, 0, 0] # changed for greenfield
 import_cost_mwh: [22.13, 0, 70, 0]
 hqch_capacity_factor: 0.9
 
 ## Existing capacity and transmission cost assumptions
 cap_market_cost_mw_yr: [27640, 53440, 101303, 104600]  # $/MW-yr
-existing_trans_load_mwh_yr: [69.683e6, 75.52e6] # MWh sales in {nodes 1 & 2}, {nodes 3 and 4}
+existing_trans_load_mwh_yr: [0, 0] # changed for greenfield
 existing_trans_cost_mwh: [16.9, 27.3] # $/MWh transmision average price component for {nodes 1 & 2}, {nodes 3 and 4}
 
 ## EV assumptions
@@ -141,8 +141,8 @@ nominal_trans_cost_mwh: 0.01
 ## Emissions assumptions -- all quantities measured in CO2e
 baseline_emissions_mmt: 302.770
 ng_e_factor_t_mwh: 0.3966601
-flex_space_heating_emissions_mmt: [26.305, 12.388, 27.026, 11.749] # wait to be updated
-flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660] # wait to be updated
+flex_space_heating_emissions_mmt: [26.305, 12.388, 27.026, 11.749]
+flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660]
 flex_trans_emissions_mmt: 73.703
 fixed_trans_emissions_mmt: 21.956
 fixed_ind_emissions_mmt: 19.365

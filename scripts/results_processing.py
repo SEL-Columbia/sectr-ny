@@ -208,6 +208,13 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'gt_existing_util_node_{ix+1}_max_mw'] = gt_existing_peak_load_by_node[:, ix]
 
+    ## Add GT CF results
+    # New GT
+    processed_df['gt_new_util_regional_cf'] = (processed_df['gt_new_util_regional_avg_mw'] /
+                                               processed_df['new_gt_cap_mw']).fillna(0)
+    # Existing GT
+    processed_df['gt_existing_util_regional_cf'] = (processed_df['gt_existing_util_regional_avg_mw'] /
+                                                    processed_df['existing_gt_cap_mw']).fillna(0)
 
     ## Add ramping
     # Add averaging ramping results for the full region
