@@ -382,7 +382,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     # BTMPV Capacity
     if args.proj_year == 2019:
-        btmpv_cap = args.btmpv_existing_mw
+        btmpv_cap = args.btmpv_cap_existing_mw
     else:
         btmpv_cap = [btmpv_capacity_projection(args.proj_year) * k for k in args.btmpv_dist]
 
@@ -647,6 +647,8 @@ def full_results_processing(args):
     processed_df['btm_power_cap_mw'] = np.sum(btm_cap, axis=1)
     # Add load met by btm solar
     processed_df['btm_gen_avg_mw'] = np.sum(btm_cap * np.mean(btmpv_pot_hourly, axis=0), axis=1)
+    processed_df['nuc_gen_avg_mw'] = int(args.nuclear_boolean) * np.sum(args.nuc_avg_gen_mw)
+
     # Add new transmission limits
     for ix, tx_key in enumerate(tx_dict.keys()):
         new_tx_cap_string = f'new_tx_limit_{int(tx_key.split("_")[-2])}_{int(tx_key.split("_")[-1])}'
@@ -681,6 +683,9 @@ def full_results_processing(args):
     processed_df['model_lct'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
                                     processed_df['gt_new_util_regional_avg_mw'] +
                                     processed_df['biofuel_util_regional_avg_mw']) / avg_mwh_for_rg
+
+    processed_df['rgt/lct'] = (int(args.rgt_boolean) * processed_df['model_rgt'] +
+                               (1 - int(args.rgt_boolean)) * processed_df['model_lct'])
 
     # Write out the processed dataframe!
     processed_df_filename = f'{args.results_dir}/{args.dir_time}/processed_results_{args.dir_time}.csv'

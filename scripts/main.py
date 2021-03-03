@@ -35,8 +35,8 @@ if __name__ == '__main__':
         #                 1, 1, 1, 1, 1, 1, 1
         #                 ]
 
-        lowc_targets = [0.7]
-        elec_ratios = [0.4]
+        lowc_targets = [0.1]
+        elec_ratios = [0]
 
 
         dghg_targets = [np.nan]*len(elec_ratios) # indeterminate

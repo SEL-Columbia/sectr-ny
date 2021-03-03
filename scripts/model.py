@@ -41,7 +41,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     # Set up LCT variable
     lowc_target = m.addVar(name = 'lowc_target')
     if model_config == 0 or model_config == 1:
-        m.addConstr(lowc_target - lct == 0)
+        m.addConstr(lowc_target - lct >= 0)
 
     # Set up GHG variable
     ghg_target = m.addVar(name = 'ghg_target')
@@ -136,11 +136,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
         # Fix renewable (wind, solar, and battery) capacities if required
         if args.fix_re_cap_boolean:
-            m.addConstr(onshore_cap     == args.onshore_wind_existing_mw[i])
-            m.addConstr(offshore_cap    == args.offshore_wind_existing_mw[i])
-            m.addConstr(solar_cap       == args.solar_existing_mw[i])
-            m.addConstr(battery_cap_mwh == args.battery_existing_mwh[i])
-            m.addConstr(battery_cap_mw  == args.battery_existing_mw[i])
+            m.addConstr(onshore_cap     == args.onshore_cap_existing_mw[i])
+            m.addConstr(offshore_cap    == args.offshore_cap_existing_mw[i])
+            m.addConstr(solar_cap       == args.solar_cap_existing_mw[i])
+            m.addConstr(battery_cap_mwh == args.existing_battery_cap_mwh[i])
+            m.addConstr(battery_cap_mw  == args.existing_battery_cap_mw[i])
         else:
             # Constrain battery power and energy to ratio limits in args
             m.addConstr(battery_cap_mw >= args.battery_p2e_ratio_range[0] * battery_cap_mwh)
