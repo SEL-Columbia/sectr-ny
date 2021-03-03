@@ -37,6 +37,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
     # Load in formatted costs for variable assignment
     cost_dict = return_costs_for_model(args)
+    print(f'Cost dictionary: {cost_dict}')
 
     # Set up LCT variable
     lowc_target = m.addVar(name = 'lowc_target')

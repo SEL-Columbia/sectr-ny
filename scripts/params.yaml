@@ -22,7 +22,7 @@ gt_based_on_current: False        # True: >= fixed 1999 MW new GT; False: >= 0 M
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
 greenfield_boolean: True        # True: Set existing GT, solar, wind, tx, hydro to zero
 copper_plate_boolean: False      # True: Set copper plate transmission condition
-same_nodal_costs: False          # True: Set nodal costs to be the same
+same_nodal_costs: True          # True: Set nodal costs to be the same
 
 # input year
 proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
@@ -86,6 +86,7 @@ h2_p2e_ratio_range: [0, 1e100] # Input min and max; if same, model will adjust c
 # Shared (assumption applies to new and existing GT)
 gt_capex_mw: [0.772e6, 0.772e6, 1.034e6, 1.034e6]
 gt_fuel_cost_mwh: [9.86, 13.79, 12.54, 12.35]
+
 # New GT assumptions (costs and efficiencies)
 new_gt_startup_cost_mw: 69
 new_gt_om_cost_mwh: 4.48
@@ -113,6 +114,12 @@ flex_hydro_cap_mw: [0, 0, 0, 0]  # changed for greenfield
 biofuel_cap_mw: [0, 0, 0, 0] # changed for greenfield
 biofuel_daily_gen_mwh: [0, 0, 0, 0] # changed for greenfield
 biofuel_cost_mwh: [20.66, 27.41, 27.05, 32.29]
+
+## Constant costs for nodal equivalency
+solar_capex_medium_constant_mw: [1362820, 1362820, 1362820, 1362820]
+gt_capex_constant_mw: [862190, 862190, 862190, 862190]
+gt_fuel_cost_constant_mwh: [11.32, 11.32, 11.32, 11.32]
+
 
 ## Imported electricity assumptions
 import_limit_mw: [0, 0, 0, 0] # changed for greenfield

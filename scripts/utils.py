@@ -149,6 +149,7 @@ def return_costs_for_model(args):
     ann_rate_10years = annualization_rate(args.i_rate, 10)
 
     # Determine whether we are using the low or medium cost assumptions
+
     if args.re_cost_scenario == 'low':
         onshore_capex_mw     = args.onshore_capex_low_mw
         solar_capex_mw       = args.solar_capex_low_mw
@@ -164,6 +165,11 @@ def return_costs_for_model(args):
 
     else:
         raise ValueError(f'args.cost_scenario {args.cost_scenario} must be either low or medium')
+
+    if args.same_nodal_costs:
+        solar_capex_mw = args.solar_capex_medium_constant_mw
+        args.__dict__['gt_capex_mw'] = args.gt_capex_constant_mw
+        args.__dict__['gt_fuel_cost_mwh'] = args.gt_fuel_cost_constant_mwh
 
     # Set up cost dict to hold costs for model
     cost_dict = {}
@@ -261,10 +267,17 @@ def return_tx_dict(args):
     # For this case, load the greenfield xlsx
     tx_matrix_limits = pd.read_excel(f'{args.data_dir}/transmission_matrix_limits_greenfield.xlsx', header=0,
                                      index_col=0)
-    tx_matrix_install_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_install_costs.xlsx', header=0,
-                                            index_col=0)
-    tx_matrix_om_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_om_costs.xlsx', header=0,
-                                       index_col=0)
+    if args.same_nodal_costs:
+        tx_matrix_install_costs = pd.read_excel(
+                                            f'{args.data_dir}/transmission_matrix_install_costs_constant_mw-mi.xlsx',
+                                            header=0, index_col=0)
+        tx_matrix_om_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_om_costs_constant_mw-yr.xlsx',
+                                           header=0, index_col=0)
+    else:
+        tx_matrix_install_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_install_costs.xlsx', header=0,
+                                                index_col=0)
+        tx_matrix_om_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_om_costs.xlsx', header=0,
+                                           index_col=0)
 
     # Define annualization rate -- here, we assume a 20 year annualization period for transmission
     annualization_cap = annualization_rate(args.i_rate, 20)
