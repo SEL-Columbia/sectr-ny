@@ -10,6 +10,93 @@ from scripts.utils import (get_args, load_timeseries, return_tx_dict,
                    btmpv_capacity_projection, return_costs_for_model)
 
 
+def cost_calculations(args, cap_results_df, processed_df):
+    '''
+    Function for determining the total costs and LCOEs associated with model solutions
+
+
+    :param args: args dictionary
+    :param cap_results_df: Raw capacity results from the model solution. These results contain the nodal capacities
+    of certain technologies with nodal-specific pricing in order to determine total cost
+    :param processed_df: Dataframe with processed results, both capacity and timeseries-based
+
+    :return: processed_df, full parameterized with cost calculations
+    '''
+    T = args.num_hours
+
+    # Collect cost and transmission dictionaries
+    cost_dict = return_costs_for_model(args)
+    tx_dict = return_tx_dict(args)
+
+    ## Find the total new capacity costs. Costs are determined for each new energy technology. Here, the costs are
+    # combinations of capex and  o&m, where applicable.
+    new_onshore_costs = np.array(processed_df['onshore_cap_mw']) * cost_dict['onshore_cost_per_mw']
+    new_offshore_cost = np.array(processed_df['offshore_cap_mw']) * cost_dict['offshore_cost_per_mw']
+    new_solar_cost = np.sum(np.array([cap_results_df[f'solar_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
+                            * np.array(cost_dict['solar_cost_per_mw']), axis=1)
+    new_gt_cost = np.sum(np.array([cap_results_df[f'gt_new_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T *
+                   np.array(cost_dict['gt_cost_per_mw']), axis=1)
+    new_batt_cost = (np.array(processed_df['battery_power_cap_mw']) * cost_dict['battery_cost_per_mw'] +
+                     np.array(processed_df['battery_energy_cap_mwh']) * cost_dict['battery_cost_per_mwh'])
+    new_h2_cost = np.sum((np.array([cap_results_df[f'h2_power_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
+                   * np.array(cost_dict['h2_cost_per_mw']) +
+                   np.array([cap_results_df[f'h2_energy_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
+                   * np.array(cost_dict['h2_cost_per_mwh'])), axis=1)
+
+    # Determine total cost of new transmission by adding the cost of new transmission capacity at each interface +
+    # directionality
+    new_tx_cost = 0
+    for jx, tx_key in enumerate(tx_dict.keys()):
+        node_out = int(tx_key.split('_')[-2])
+        node_in = int(tx_key.split('_')[-1])
+        tx_cap_string = f'new_tx_limit_{node_out}_{node_in}_mw'
+
+        new_tx_cost += (np.array(processed_df[tx_cap_string]) - tx_dict[tx_key][0]) * tx_dict[tx_key][1]
+
+
+    ## Find the total generation cost. Costs are determine for each generation technology
+    total_hydro_cost = np.sum([args.hydro_avg_gen_mw[k] * args.hydro_cost_mwh[k] for k in range(args.num_nodes)]) * T
+    total_nuclear_cost = args.nuclear_boolean * np.sum([args.nuc_avg_gen_mw[k] * args.nuc_cost_mwh[k] for
+                                                        k in range(args.num_nodes)]) * T
+
+    total_biofuel_cost = np.sum(np.array([processed_df[f'biofuel_util_node_{ix+1}_avg_mw'] for ix in range(
+                                    args.num_nodes)]).T * np.array(args.biofuel_cost_mwh) * T, axis=1)
+
+    total_new_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_new_util_node_{ix+1}_avg_mw'] for ix in range(
+                                    args.num_nodes)]).T * cost_dict['new_gt_cost_mwh'] * T, axis=1)
+
+    total_existing_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_existing_util_node_{ix+1}_avg_mw'] for ix in
+                                    range(args.num_nodes)]).T * cost_dict['existing_gt_cost_mwh'] * T, axis=1)
+
+    total_new_gt_ramp_cost = np.array(processed_df['new_gt_ramp_avg_mw']) * args.new_gt_startup_cost_mw/2 * T
+    total_existing_gt_ramp_cost = np.array(processed_df['existing_gt_ramp_avg_mw']) * \
+                                  args.existing_gt_startup_cost_mw/2 * T
+
+    total_imports_cost = np.sum(np.array([processed_df[f'elec_import_node_{ix+1}_avg_mw'] for ix in
+                                 range(args.num_nodes)]).T * np.array(args.import_cost_mwh) * T, axis=1)
+
+
+    ## Find the total supplmentary costs. Here total costs are the combinations of costs associated with maintaining
+    # existing generation capacity and existing transmission
+    existing_tx_costs = np.sum([args.existing_trans_cost_mwh[i]*float(args.existing_trans_load_mwh_yr[i]) for i in
+                                range(len(args.existing_trans_load_mwh_yr))]) * T/8760
+    existing_cap_for_payments = (int(args.nuclear_boolean)*np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw) +
+                                  np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
+    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr))
+
+    supp_cost = existing_tx_costs + existing_cap_cost
+
+    ## Put together total new capacity + generation costs and return
+    new_cap_cost = (new_onshore_costs + new_offshore_cost + new_solar_cost + new_gt_cost + new_batt_cost +
+                    new_h2_cost + new_tx_cost)
+
+    generation_cost = (total_hydro_cost + total_nuclear_cost + total_biofuel_cost + total_new_gt_fuel_cost +
+                       total_existing_gt_fuel_cost + total_new_gt_ramp_cost + total_existing_gt_ramp_cost +
+                       total_imports_cost)
+
+    return new_cap_cost, generation_cost, supp_cost
+
+
 def load_ts_based_results(args, processed_df):
     '''
     Function for producing results based on the timeseries outputs of the model
@@ -225,9 +312,9 @@ def load_ts_based_results(args, processed_df):
     processed_df['biofuel_util_regional_avg_mw'] = np.sum(biofuel_util, axis=1) / T
     for ix in range(args.num_nodes):
         processed_df[f'biofuel_util_node_{ix+1}_avg_mw'] = biofuel_util[:, ix]/T
-    # Add maximum biofuel load results, by node
-    for ix in range(args.num_nodes):
-        processed_df[f'biofuel_peak_load_node_{ix+1}_mw'] = biofuel_peak_load_by_node[:, ix]
+    # # Add maximum biofuel load results, by node
+    # for ix in range(args.num_nodes):
+    #     processed_df[f'biofuel_peak_load_node_{ix+1}_mw'] = biofuel_peak_load_by_node[:, ix]
 
     # Add battery charge, regional and by node
     processed_df['battery_charge_regional_avg_mw'] = np.sum(battery_charge, axis=1) / T
@@ -239,6 +326,17 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'battery_discharge_node_{ix+1}_avg_mw'] = battery_discharge[:, ix]/T
 
+    # Add battery cycling, regional and by node
+    battery_throughput_regional = (processed_df['battery_charge_regional_avg_mw'] +
+                                   processed_df['battery_discharge_regional_avg_mw'])/2
+    battery_throughput_nodal = (battery_charge + battery_discharge)/(2*T)
+
+    processed_df['battery_regional_cycles_yr'] = (battery_throughput_regional * 8760 /
+                                                  processed_df['battery_energy_cap_mwh'])
+    for ix in range(args.num_nodes):
+        processed_df[f'battery_node_{ix+1}_cycles_yr'] = (battery_throughput_nodal[:, ix] * 8760 /
+                                                          processed_df[f'batt_energy_cap_node_{ix+1}_mwh'])
+
     # Add average H2 charge, regional and by node
     processed_df['h2_charge_regional_avg_mw'] = np.sum(h2_charge, axis=1) / T
     for ix in range(args.num_nodes):
@@ -248,6 +346,18 @@ def load_ts_based_results(args, processed_df):
     processed_df['h2_discharge_regional_avg_mw'] = np.sum(h2_discharge, axis=1) / T
     for ix in range(args.num_nodes):
         processed_df[f'h2_discharge_node_{ix + 1}_avg_mw'] = h2_discharge[:, ix] / T
+
+    # Add H2 cycling, regional and by node
+    h2_throughput_regional = (processed_df['h2_charge_regional_avg_mw'] +
+                              processed_df['h2_discharge_regional_avg_mw']) / 2
+    h2_throughput_nodal = (h2_charge + h2_discharge) / (2 * T)
+
+    processed_df['h2_regional_cycles_yr'] = (h2_throughput_regional * 8760 /
+                                            processed_df['h2_energy_cap_mwh'])
+    print(processed_df['h2_regional_cycles_yr'])
+    for ix in range(args.num_nodes):
+        processed_df[f'h2_node_{ix+1}_cycles_yr'] = (h2_throughput_nodal[:, ix] * 8760 /
+                                                    processed_df[f'h2_energy_cap_node_{ix+1}_mwh'])
 
     # Add average electricity import, region and by node
     processed_df['elec_import_regional_avg_mw'] = np.sum(elec_import, axis=1) / T
@@ -272,94 +382,11 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'tx_losses_node_{ix+1}_avg_mw'] = tx_losses[:, ix]
 
+    # Fill NA values
+    processed_df = processed_df.fillna('NaN')
+
     return processed_df
 
-
-def cost_calculations(args, cap_results_df, processed_df):
-    '''
-    Function for determining the total costs and LCOEs associated with model solutions
-
-
-    :param args: args dictionary
-    :param cap_results_df: Raw capacity results from the model solution. These results contain the nodal capacities
-    of certain technologies with nodal-specific pricing in order to determine total cost
-    :param processed_df: Dataframe with processed results, both capacity and timeseries-based
-
-    :return: processed_df, full parameterized with cost calculations
-    '''
-    T = args.num_hours
-
-    # Collect cost and transmission dictionaries
-    cost_dict = return_costs_for_model(args)
-    tx_dict = return_tx_dict(args)
-
-    ## Find the total new capacity costs. Costs are determined for each new energy technology. Here, the costs are
-    # combinations of capex and  o&m, where applicable.
-    new_onshore_costs = np.array(processed_df['onshore_cap_mw']) * cost_dict['onshore_cost_per_mw']
-    new_offshore_cost = np.array(processed_df['offshore_cap_mw']) * cost_dict['offshore_cost_per_mw']
-    new_solar_cost = np.sum(np.array([cap_results_df[f'solar_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
-                            * np.array(cost_dict['solar_cost_per_mw']), axis=1)
-    new_gt_cost = np.sum(np.array([cap_results_df[f'gt_new_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T *
-                   np.array(cost_dict['gt_cost_per_mw']), axis=1)
-    new_batt_cost = (np.array(processed_df['battery_power_cap_mw']) * cost_dict['battery_cost_per_mw'] +
-                     np.array(processed_df['battery_energy_cap_mwh']) * cost_dict['battery_cost_per_mwh'])
-    new_h2_cost = np.sum((np.array([cap_results_df[f'h2_power_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
-                   * np.array(cost_dict['h2_cost_per_mw']) +
-                   np.array([cap_results_df[f'h2_energy_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
-                   * np.array(cost_dict['h2_cost_per_mwh'])), axis=1)
-
-    # Determine total cost of new transmission by adding the cost of new transmission capacity at each interface +
-    # directionality
-    new_tx_cost = 0
-    for jx, tx_key in enumerate(tx_dict.keys()):
-        node_out = int(tx_key.split('_')[-2])
-        node_in = int(tx_key.split('_')[-1])
-        tx_cap_string = f'new_tx_limit_{node_out}_{node_in}_mw'
-
-        new_tx_cost += (np.array(processed_df[tx_cap_string]) - tx_dict[tx_key][0]) * tx_dict[tx_key][1]
-
-
-    ## Find the total generation cost. Costs are determine for each generation technology
-    total_hydro_cost = np.sum([args.hydro_avg_gen_mw[k] * args.hydro_cost_mwh[k] for k in range(args.num_nodes)]) * T
-    total_nuclear_cost = args.nuclear_boolean * np.sum([args.nuc_avg_gen_mw[k] * args.nuc_cost_mwh[k] for
-                                                        k in range(args.num_nodes)]) * T
-
-    total_biofuel_cost = np.sum(np.array([processed_df[f'biofuel_util_node_{ix+1}_avg_mw'] for ix in range(
-                                    args.num_nodes)]).T * np.array(args.biofuel_cost_mwh) * T, axis=1)
-
-    total_new_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_new_util_node_{ix+1}_avg_mw'] for ix in range(
-                                    args.num_nodes)]).T * cost_dict['new_gt_cost_mwh'] * T, axis=1)
-
-    total_existing_gt_fuel_cost = np.sum(np.array([processed_df[f'gt_existing_util_node_{ix+1}_avg_mw'] for ix in
-                                    range(args.num_nodes)]).T * cost_dict['existing_gt_cost_mwh'] * T, axis=1)
-
-    total_new_gt_ramp_cost = np.array(processed_df['new_gt_ramp_avg_mw']) * args.new_gt_startup_cost_mw/2 * T
-    total_existing_gt_ramp_cost = np.array(processed_df['existing_gt_ramp_avg_mw']) * \
-                                  args.existing_gt_startup_cost_mw/2 * T
-
-    total_imports_cost = np.sum(np.array([processed_df[f'elec_import_node_{ix+1}_avg_mw'] for ix in
-                                 range(args.num_nodes)]).T * np.array(args.import_cost_mwh) * T, axis=1)
-
-
-    ## Find the total supplmentary costs. Here total costs are the combinations of costs associated with maintaining
-    # existing generation capacity and existing transmission
-    existing_tx_costs = np.sum([args.existing_trans_cost_mwh[i]*float(args.existing_trans_load_mwh_yr[i]) for i in
-                                range(len(args.existing_trans_load_mwh_yr))]) * T/8760
-    existing_cap_for_payments = (int(args.nuclear_boolean)*np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw) +
-                                  np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
-    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr))
-
-    supp_cost = existing_tx_costs + existing_cap_cost
-
-    ## Put together total new capacity + generation costs and return
-    new_cap_cost = (new_onshore_costs + new_offshore_cost + new_solar_cost + new_gt_cost + new_batt_cost +
-                    new_h2_cost + new_tx_cost)
-
-    generation_cost = (total_hydro_cost + total_nuclear_cost + total_biofuel_cost + total_new_gt_fuel_cost +
-                       total_existing_gt_fuel_cost + total_new_gt_ramp_cost + total_existing_gt_ramp_cost +
-                       total_imports_cost)
-
-    return new_cap_cost, generation_cost, supp_cost
 
 
 
@@ -534,8 +561,6 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     dghg_target = m.getVarByName('ghg_target').X / cf_mult
 
     # Round
-    cap_results_df = cap_results_df.round(decimals=3)
-    ts_results_df = ts_results_df.round(decimals=3)
 
     ## Add additional results to the dataframe
     cap_results_df['model_config'] = model_config
@@ -560,8 +585,8 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     cap_results_save_str = f'{cap_dir}/cap_results_scenix_{scen_ix}.csv'
     ts_results_save_str = f'{ts_dir}/ts_results_scenix_{scen_ix}.csv'
 
-    cap_results_df.to_csv(cap_results_save_str)
-    ts_results_df.to_csv(ts_results_save_str)
+    cap_results_df.round(decimals=5).to_csv(cap_results_save_str)
+    ts_results_df.round(decimals=5).to_csv(ts_results_save_str)
 
     return cap_results_df, ts_results_df
 
@@ -657,6 +682,16 @@ def full_results_processing(args):
     for ix, tx_key in enumerate(tx_dict.keys()):
         new_tx_cap_string = f'new_tx_limit_{int(tx_key.split("_")[-2])}_{int(tx_key.split("_")[-1])}'
         processed_df[new_tx_cap_string+'_mw'] = cap_results_df[new_tx_cap_string]
+
+    nodal_capacity_strings = ['onshore_cap_node_', 'offshore_cap_node_', 'solar_cap_node_', 'gt_new_cap_node_',
+                              'batt_energy_cap_node_', 'h2_energy_cap_node_']
+    # Add new wind, solar, and gt_capacity by node
+    for ix, cap_str in enumerate(nodal_capacity_strings):
+        for jx in range(args.num_nodes):
+            if ix < 4:
+                processed_df[f'{cap_str}{jx+1}_mw'] = cap_results_df[f'{cap_str}{jx+1}']
+            else:
+                processed_df[f'{cap_str}{jx+1}_mwh'] = cap_results_df[f'{cap_str}{jx + 1}']
 
     # Load results that depend on timeseries
     processed_df = load_ts_based_results(args, processed_df)
