@@ -533,6 +533,10 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     # LCT GHGT elec results
     dghg_target = m.getVarByName('ghg_target').X / cf_mult
 
+    # Round
+    cap_results_df = cap_results_df.round(decimals=3)
+    ts_results_df = ts_results_df.round(decimals=3)
+
     ## Add additional results to the dataframe
     cap_results_df['model_config'] = model_config
     cap_results_df['re_cost_scenario'] = args.re_cost_scenario
@@ -556,8 +560,8 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     cap_results_save_str = f'{cap_dir}/cap_results_scenix_{scen_ix}.csv'
     ts_results_save_str = f'{ts_dir}/ts_results_scenix_{scen_ix}.csv'
 
-    cap_results_df.round(decimals=3).to_csv(cap_results_save_str)
-    ts_results_df.round(decimals=3).to_csv(ts_results_save_str)
+    cap_results_df.to_csv(cap_results_save_str)
+    ts_results_df.to_csv(ts_results_save_str)
 
     return cap_results_df, ts_results_df
 
