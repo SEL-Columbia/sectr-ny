@@ -6,3 +6,4 @@ extra_code/*
 *.idea*
 nys_testing.egg-info/*
 plots/*
+documentation/*
