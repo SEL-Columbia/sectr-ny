@@ -44,12 +44,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.addConstr(lowc_target - lct == 0)
 
     # Set up GHG variable
-    ghg_target = m.addVar(name = 'ghg_target')
+    ghg_target = m.addVar(name = 'ghg_target', lb=-GRB.INFINITY)
     if model_config == 1 or model_config == 2 or model_config == 3:
         m.addConstr(ghg_target - ghgt == 0)
 
-    # Set up electrification % variable
-
+    m.update()
 
     # Load dictionary with tx costs and current capacities. Create dictionary to store the transmission time series
     tx_dict = return_tx_dict(args)
@@ -60,8 +59,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
     # Determine BTM PV and waste emissions based on whether the projection year is 2019
     if args.proj_year == 2019:
-        btmpv_cap_mw = args.btmpv_existing_mw
-        waste_emissions_mmt = args.waste_emissions
+        btmpv_cap_mw = args.btmpv_cap_existing_mw
+        waste_emissions_mmt = args.waste_emissions_mmt
     else:
         btmpv_state_cap_mw = btmpv_capacity_projection(args.proj_year)
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]
@@ -104,6 +103,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             new_import_cap = m.addVar(obj=tx_dict[f'existing_tx_limit_{export_node}_{i+1}'][1],
                                       name=f'new_tx_limit_{export_node}_{i+1}')
 
+            if args.fix_existing_cap_boolean:
+                m.addConstr(new_export_cap == 0)
+                m.addConstr(new_import_cap == 0)
+
         m.update()
 
         ## Initialize capacity variables
@@ -120,8 +123,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         # Add capacity constraints
         m.addConstr(onshore_cap <= args.onshore_cap_limit_mw[i])
         m.addConstr(onshore_cap >= args.onshore_cap_existing_mw[i])
+        m.addConstr(offshore_cap >= args.offshore_cap_existing_mw[i])
 
-        m.addConstr(offshore_cap>=args.offshore_cap_existing_mw[i])
         m.addConstr(solar_cap <= args.solar_cap_limit_mw[i])
         m.addConstr(solar_cap >= args.solar_cap_existing_mw[i])
 
@@ -129,18 +132,19 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.addConstr(battery_cap_mwh >= args.existing_battery_cap_mwh[i])
         m.addConstr(battery_cap_mw >= args.existing_battery_cap_mw[i])
 
+        m.update()
 
         # Set the amount of new GT cap if no new capacity is allowed
         if not args.new_gt_boolean:
-            m.addConstr(gt_new_cap == int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
+            m.addConstr(gt_new_cap == args.current_scenario_addl_gt_cap[i])
 
         # Fix renewable (wind, solar, and battery) capacities if required
-        if args.fix_re_cap_boolean:
-            m.addConstr(onshore_cap     == args.onshore_wind_existing_mw[i])
-            m.addConstr(offshore_cap    == args.offshore_wind_existing_mw[i])
-            m.addConstr(solar_cap       == args.solar_existing_mw[i])
-            m.addConstr(battery_cap_mwh == args.battery_existing_mwh[i])
-            m.addConstr(battery_cap_mw  == args.battery_existing_mw[i])
+        if args.fix_existing_cap_boolean:
+            m.addConstr(onshore_cap  == args.onshore_cap_existing_mw[i])
+            m.addConstr(offshore_cap == args.offshore_cap_existing_mw[i])
+            m.addConstr(solar_cap == args.solar_cap_existing_mw[i])
+            m.addConstr(battery_cap_mwh == args.existing_battery_cap_mwh[i])
+            m.addConstr(battery_cap_mw  == args.existing_battery_cap_mw[i])
         else:
             # Constrain battery power and energy to ratio limits in args
             m.addConstr(battery_cap_mw >= args.battery_p2e_ratio_range[0] * battery_cap_mwh)
@@ -295,7 +299,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
             # Add constraints for new HQ imports into NYC -- This is to ensure constant flow of power
             if i == 2:
-                m.addConstr(elec_import[j] - args.hqch_capacity_factor * args.import_limit_mw[i] == 0)
+                if args.fix_existing_cap_boolean:
+                    m.addConstr(elec_import[j] == 0)
+                else:
+                    m.addConstr(elec_import[j] - args.hqch_capacity_factor * args.import_limit_mw[i] == 0)
 
         m.update()
 
@@ -470,7 +477,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                  trans_emissions +
                  args.fixed_trans_emissions_mmt +
                  args.fixed_ind_emissions_mmt +
-                 waste_emissions_mmt) == (1 - ghg_target) * args.baseline_emissions_mmt,
+                 waste_emissions_mmt) - ((1 - ghg_target) * args.baseline_emissions_mmt) == 0,
                 name='ghg_emissions_constraint')
 
     m.update()

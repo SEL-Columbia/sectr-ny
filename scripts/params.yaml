@@ -8,9 +8,9 @@ scenario_name: 'scenario_name'
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
 re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
-fix_re_cap_boolean: False        # True: fix wind, solar, battery capacity
+fix_existing_cap_boolean: True   # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
-nuclear_boolean: False           # True: allow nuclear; False: no nuclear
+nuclear_boolean: True           # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
 new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
@@ -25,24 +25,13 @@ copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 
 # input year
-proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
+proj_year: 2019    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
 num_years: 6
 num_hours: 52608
 num_nodes: 4
 i_rate: 0.05
-
-## Utility-scale solar (solar) and behind-the-meter (btmpv) solar assumptions:
-# Costs
-solar_capex_medium_mw: [1.341e6, 1.341e6, 1.593e6, 1.593e6]
-solar_capex_low_mw: [1.006e6, 1.006e6, 1.195e6, 1.195e6]
-solar_om_cost_mw_yr: 10.4e3
-# Capacities
-solar_cap_existing_mw: [0,  0,  0,  56.5]
-solar_cap_limit_mw: [212710, 44899, 481, 2743]
-btmpv_cap_existing_mw: [562, 523, 293, 259]
-btmpv_dist: [0.3192, 0.3577, 0.1659, 0.1572]
 
 ## Wind assumptions
 # Cost
@@ -57,6 +46,17 @@ onshore_cap_existing_mw: [1985.25, 0, 0, 0]
 onshore_cap_limit_mw: [32402, 4376, 0, 0]
 offshore_cap_existing_mw: [0, 0, 0, 0]
 offshore_cap_total_limit_mw: 57938
+
+## Utility-scale solar (solar) and behind-the-meter (btmpv) solar assumptions:
+# Costs
+solar_capex_medium_mw: [1.341e6, 1.341e6, 1.593e6, 1.593e6]
+solar_capex_low_mw: [1.006e6, 1.006e6, 1.195e6, 1.195e6]
+solar_om_cost_mw_yr: 10.4e3
+# Capacities
+solar_cap_existing_mw: [0, 0, 0, 56.5]
+solar_cap_limit_mw: [212710, 44899, 481, 2743]
+btmpv_cap_existing_mw: [562, 523, 293, 259]
+btmpv_dist: [0.3192, 0.3577, 0.1659, 0.1572]
 
 ## Battery storage assumptions
 # Cost
