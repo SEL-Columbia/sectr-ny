@@ -69,6 +69,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     # Define existing usable cap based on reserve requirement
     gt_existing_cap = [x / args.reserve_req for x in args.existing_gt_cap_mw]
 
+    m.update()
     #####----------------------------------------------------------------------------------------------------------#####
     #####----------------------------------------------------------------------------------------------------------#####
     ##### !!!!!                     Initialize constraints for single node variables                       !!!!! #####
@@ -120,20 +121,9 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         h2_cap_mwh      = m.addVar(obj=cost_dict['h2_cost_per_mwh'][i], name = f'h2_energy_cap_node_{i+1}')
         h2_cap_mw       = m.addVar(obj=cost_dict['h2_cost_per_mw'][i], name = f'h2_power_cap_node_{i+1}')
 
-        # Add capacity constraints
-        m.addConstr(onshore_cap <= args.onshore_cap_limit_mw[i])
-        m.addConstr(onshore_cap >= args.onshore_cap_existing_mw[i])
-        m.addConstr(offshore_cap >= args.offshore_cap_existing_mw[i])
-
-        m.addConstr(solar_cap <= args.solar_cap_limit_mw[i])
-        m.addConstr(solar_cap >= args.solar_cap_existing_mw[i])
-
-        m.addConstr(gt_new_cap >= int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
-        m.addConstr(battery_cap_mwh >= args.existing_battery_cap_mwh[i])
-        m.addConstr(battery_cap_mw >= args.existing_battery_cap_mw[i])
-
         m.update()
 
+        # Add capacity constraints
         # Set the amount of new GT cap if no new capacity is allowed
         if not args.new_gt_boolean:
             m.addConstr(gt_new_cap == args.current_scenario_addl_gt_cap[i])
@@ -145,10 +135,26 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(solar_cap == args.solar_cap_existing_mw[i])
             m.addConstr(battery_cap_mwh == args.existing_battery_cap_mwh[i])
             m.addConstr(battery_cap_mw  == args.existing_battery_cap_mw[i])
+
         else:
+            m.addConstr(onshore_cap >= float(args.onshore_cap_existing_mw[i]))
+            m.addConstr(onshore_cap <= args.onshore_cap_limit_mw[i])
+
+            m.addConstr(offshore_cap >= args.offshore_cap_existing_mw[i])
+
+            m.addConstr(solar_cap <= args.solar_cap_limit_mw[i])
+            m.addConstr(solar_cap >= args.solar_cap_existing_mw[i])
+
+            m.addConstr(battery_cap_mwh >= args.existing_battery_cap_mwh[i])
+            m.addConstr(battery_cap_mw >= args.existing_battery_cap_mw[i])
+
             # Constrain battery power and energy to ratio limits in args
             m.addConstr(battery_cap_mw >= args.battery_p2e_ratio_range[0] * battery_cap_mwh)
             m.addConstr(battery_cap_mw <= args.battery_p2e_ratio_range[1] * battery_cap_mwh)
+
+        m.addConstr(gt_new_cap >= int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
+
+        m.update()
 
 
         ## Initialize time-series variables
@@ -471,14 +477,14 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                                                          for i in range(args.num_nodes))
 
     # Sum total emissions and constrain to the ghg_target
-    m.addConstr((elec_emissions +
-                 heating_emissions +
-                 heating_emissions_dss +
-                 trans_emissions +
-                 args.fixed_trans_emissions_mmt +
-                 args.fixed_ind_emissions_mmt +
-                 waste_emissions_mmt) - ((1 - ghg_target) * args.baseline_emissions_mmt) == 0,
-                name='ghg_emissions_constraint')
+    # m.addConstr((elec_emissions +
+    #              heating_emissions +
+    #              heating_emissions_dss +
+    #              trans_emissions +
+    #              args.fixed_trans_emissions_mmt +
+    #              args.fixed_ind_emissions_mmt +
+    #              waste_emissions_mmt) - ((1 - ghg_target) * args.baseline_emissions_mmt) == 0,
+    #             name='ghg_emissions_constraint')
 
     m.update()
     

@@ -75,6 +75,8 @@ def cost_calculations(args, cap_results_df, processed_df):
     total_imports_cost = np.sum(np.array([processed_df[f'elec_import_node_{ix+1}_avg_mw'] for ix in
                                  range(args.num_nodes)]).T * np.array(args.import_cost_mwh) * T, axis=1)
 
+    print(f'')
+
 
     ## Find the total supplmentary costs. Here total costs are the combinations of costs associated with maintaining
     # existing generation capacity and existing transmission
@@ -82,13 +84,19 @@ def cost_calculations(args, cap_results_df, processed_df):
                                 range(len(args.existing_trans_load_mwh_yr))]) * T/8760
     existing_cap_for_payments = (int(args.nuclear_boolean)*np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw) +
                                   np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
-    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr))
+    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr))* T/8760
 
     supp_cost = existing_tx_costs + existing_cap_cost
+
+    print(f'existing_tx_costs: {existing_tx_costs}')
+    print(f'existing_cap_for_payments: {existing_cap_for_payments}')
+    print(f'existing_cap_cost: {existing_cap_cost}')
+
 
     ## Put together total new capacity + generation costs and return
     new_cap_cost = (new_onshore_costs + new_offshore_cost + new_solar_cost + new_gt_cost + new_batt_cost +
                     new_h2_cost + new_tx_cost)
+
 
     generation_cost = (total_hydro_cost + total_nuclear_cost + total_biofuel_cost + total_new_gt_fuel_cost +
                        total_existing_gt_fuel_cost + total_new_gt_ramp_cost + total_existing_gt_ramp_cost +
@@ -332,10 +340,10 @@ def load_ts_based_results(args, processed_df):
     battery_throughput_nodal = (battery_charge + battery_discharge)/(2*T)
 
     processed_df['battery_regional_cycles_yr'] = (battery_throughput_regional * 8760 /
-                                                  processed_df['battery_energy_cap_mwh'])
+                                                  (2*processed_df['battery_energy_cap_mwh']))
     for ix in range(args.num_nodes):
         processed_df[f'battery_node_{ix+1}_cycles_yr'] = (battery_throughput_nodal[:, ix] * 8760 /
-                                                          processed_df[f'batt_energy_cap_node_{ix+1}_mwh'])
+                                                          (2*processed_df[f'batt_energy_cap_node_{ix+1}_mwh']))
 
     # Add average H2 charge, regional and by node
     processed_df['h2_charge_regional_avg_mw'] = np.sum(h2_charge, axis=1) / T
@@ -353,11 +361,10 @@ def load_ts_based_results(args, processed_df):
     h2_throughput_nodal = (h2_charge + h2_discharge) / (2 * T)
 
     processed_df['h2_regional_cycles_yr'] = (h2_throughput_regional * 8760 /
-                                            processed_df['h2_energy_cap_mwh'])
-    print(processed_df['h2_regional_cycles_yr'])
+                                             (2*processed_df['h2_energy_cap_mwh']))
     for ix in range(args.num_nodes):
         processed_df[f'h2_node_{ix+1}_cycles_yr'] = (h2_throughput_nodal[:, ix] * 8760 /
-                                                    processed_df[f'h2_energy_cap_node_{ix+1}_mwh'])
+                                                    (2*processed_df[f'h2_energy_cap_node_{ix+1}_mwh']))
 
     # Add average electricity import, region and by node
     processed_df['elec_import_regional_avg_mw'] = np.sum(elec_import, axis=1) / T
@@ -644,7 +651,7 @@ def full_results_processing(args):
     processed_df['addl_ev_load_mw'] = avg_ev_demand
 
     # Continue parameterizing the processed dataframe with other model configuration parameters
-    processed_df['re_cost_scenario'] = [args.re_cost_scenario] * len(cap_results_df)
+    processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
     processed_df['rgt_boolean'] = [int(args.rgt_boolean)] * len(cap_results_df)
     processed_df['nuc_boolean'] = [int(args.nuclear_boolean)] * len(cap_results_df)
     processed_df['h2_boolean'] = [int(args.h2_boolean)] * len(cap_results_df)
@@ -733,7 +740,9 @@ def full_results_processing(args):
 
 if __name__ == '__main__':
     args = get_args()
-    args.__dict__['dir_time'] = '20210302-112325_baseline'
+
+    args.__dict__['results_dir'] = f'{args.results_dir}/model_configs/'
+    args.__dict__['dir_time'] = '20210303-155417_current'
 
 
     full_results_processing(args)

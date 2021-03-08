@@ -7,8 +7,8 @@ scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
-re_cost_scenario: 'low'          # or 'low' for low renewable generator and battery storage costs
-fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
+re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
+fix_existing_cap_boolean: True  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: False            # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
@@ -28,8 +28,8 @@ same_nodal_costs: False          # True: Set nodal costs to be the same
 proj_year: 2019    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
-num_years: 6
-num_hours: 52608
+num_years: 1
+num_hours: 8760
 num_nodes: 4
 i_rate: 0.05
 
@@ -42,7 +42,7 @@ offshore_capex_medium_mw: 3.583e6
 offshore_capex_low_mw: 2.256e6
 offshore_om_cost_mw_yr: 3.8e4
 # Capacities
-onshore_cap_existing_mw: [1985.25, 0, 0, 0]
+onshore_cap_existing_mw: [1985, 0, 0, 0]
 onshore_cap_limit_mw: [32402, 4376, 0, 0]
 offshore_cap_existing_mw: [0, 0, 0, 0]
 offshore_cap_total_limit_mw: 57938
@@ -149,8 +149,8 @@ fixed_ind_emissions_mmt: 19.365
 waste_emissions_mmt: 2.784
 
 # Gurobi solver parameters
-feasibility_tol: 0.01
-optimality_tol: 0.01
+feasibility_tol: 0.0001
+optimality_tol: 0.0001
 method: 2
 bar_conv_tol: 0
 bar_order: 0
