@@ -75,22 +75,17 @@ def cost_calculations(args, cap_results_df, processed_df):
     total_imports_cost = np.sum(np.array([processed_df[f'elec_import_node_{ix+1}_avg_mw'] for ix in
                                  range(args.num_nodes)]).T * np.array(args.import_cost_mwh) * T, axis=1)
 
-    print(f'')
 
 
     ## Find the total supplmentary costs. Here total costs are the combinations of costs associated with maintaining
     # existing generation capacity and existing transmission
     existing_tx_costs = np.sum([args.existing_trans_cost_mwh[i]*float(args.existing_trans_load_mwh_yr[i]) for i in
-                                range(len(args.existing_trans_load_mwh_yr))]) * T/8760
+                                range(len(args.existing_trans_load_mwh_yr))]) * args.num_years
     existing_cap_for_payments = (int(args.nuclear_boolean)*np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw) +
                                   np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
-    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr))* T/8760
+    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr)) * args.num_years
 
     supp_cost = existing_tx_costs + existing_cap_cost
-
-    print(f'existing_tx_costs: {existing_tx_costs}')
-    print(f'existing_cap_for_payments: {existing_cap_for_payments}')
-    print(f'existing_cap_cost: {existing_cap_cost}')
 
 
     ## Put together total new capacity + generation costs and return
@@ -339,10 +334,10 @@ def load_ts_based_results(args, processed_df):
                                    processed_df['battery_discharge_regional_avg_mw'])/2
     battery_throughput_nodal = (battery_charge + battery_discharge)/(2*T)
 
-    processed_df['battery_regional_cycles_yr'] = (battery_throughput_regional * 8760 /
+    processed_df['battery_regional_full_cycles_yr'] = (battery_throughput_regional * 8760 /
                                                   (2*processed_df['battery_energy_cap_mwh']))
     for ix in range(args.num_nodes):
-        processed_df[f'battery_node_{ix+1}_cycles_yr'] = (battery_throughput_nodal[:, ix] * 8760 /
+        processed_df[f'battery_node_{ix+1}_full_cycles_yr'] = (battery_throughput_nodal[:, ix] * 8760 /
                                                           (2*processed_df[f'batt_energy_cap_node_{ix+1}_mwh']))
 
     # Add average H2 charge, regional and by node
@@ -360,10 +355,10 @@ def load_ts_based_results(args, processed_df):
                               processed_df['h2_discharge_regional_avg_mw']) / 2
     h2_throughput_nodal = (h2_charge + h2_discharge) / (2 * T)
 
-    processed_df['h2_regional_cycles_yr'] = (h2_throughput_regional * 8760 /
+    processed_df['h2_regional_full_cycles_yr'] = (h2_throughput_regional * 8760 /
                                              (2*processed_df['h2_energy_cap_mwh']))
     for ix in range(args.num_nodes):
-        processed_df[f'h2_node_{ix+1}_cycles_yr'] = (h2_throughput_nodal[:, ix] * 8760 /
+        processed_df[f'h2_node_{ix+1}_full_cycles_yr'] = (h2_throughput_nodal[:, ix] * 8760 /
                                                     (2*processed_df[f'h2_energy_cap_node_{ix+1}_mwh']))
 
     # Add average electricity import, region and by node
@@ -715,6 +710,7 @@ def full_results_processing(args):
     processed_df['generation_lcoe'] = generation_cost/total_mwh_for_lcoe
     processed_df['supp_cost_lcoe']  = supp_cost/total_mwh_for_lcoe
     processed_df['total_lcoe'] = (new_cap_cost + generation_cost + supp_cost)/total_mwh_for_lcoe
+    processed_df['total_annualized_cost'] = (new_cap_cost + generation_cost + supp_cost)/args.num_years
 
 
     ## calculate the renewable electricity ratio / low-carbon electricity ratio

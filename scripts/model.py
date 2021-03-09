@@ -45,6 +45,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
     # Set up GHG variable
     ghg_target = m.addVar(name = 'ghg_target', lb=-GRB.INFINITY)
+
     if model_config == 1 or model_config == 2 or model_config == 3:
         m.addConstr(ghg_target - ghgt == 0)
 
@@ -477,14 +478,14 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                                                          for i in range(args.num_nodes))
 
     # Sum total emissions and constrain to the ghg_target
-    # m.addConstr((elec_emissions +
-    #              heating_emissions +
-    #              heating_emissions_dss +
-    #              trans_emissions +
-    #              args.fixed_trans_emissions_mmt +
-    #              args.fixed_ind_emissions_mmt +
-    #              waste_emissions_mmt) - ((1 - ghg_target) * args.baseline_emissions_mmt) == 0,
-    #             name='ghg_emissions_constraint')
+    m.addConstr((elec_emissions +
+                 heating_emissions +
+                 heating_emissions_dss +
+                 trans_emissions +
+                 args.fixed_trans_emissions_mmt +
+                 args.fixed_ind_emissions_mmt +
+                 waste_emissions_mmt) - ((1 - ghg_target) * args.baseline_emissions_mmt) == 0,
+                name='ghg_emissions_constraint')
 
     m.update()
     

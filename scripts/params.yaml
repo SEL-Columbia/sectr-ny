@@ -8,7 +8,7 @@ scenario_name: 'scenario_name'
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
 re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
-fix_existing_cap_boolean: True  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
+fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: False            # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
@@ -25,11 +25,11 @@ copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 
 # input year
-proj_year: 2019    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
+proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
-num_years: 1
-num_hours: 8760
+num_years: 6
+num_hours: 52608
 num_nodes: 4
 i_rate: 0.05
 
