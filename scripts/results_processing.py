@@ -608,12 +608,15 @@ def full_results_processing(args):
     # Collect all the raw capacity results, which are saved by scenario
     cap_results_dir = f'{args.results_dir}/{args.dir_time}/cap_results'
     cap_results_csvs = sorted(glob(f'{cap_results_dir}/*scenix*.csv'))
+    scen_ixs = [int(i.split('_')[-1].replace('.csv', '')) for i in cap_results_csvs]
+
 
     # Add all the raw capacity results by scenario to a single dataframe. This dataframe contains all the capacity
     # results present in the model run folder
     cap_results_df = pd.DataFrame()
     for file in cap_results_csvs:
         cap_results_df = cap_results_df.append(pd.read_csv(file))
+    cap_results_df = cap_results_df.reset_index()
 
     # Collect results from the raw capacity dataframe
     heating_rate = np.array([cap_results_df[f'eheating_rate_node_{i+1}'] for i in range(args.num_nodes)]).T
@@ -635,8 +638,9 @@ def full_results_processing(args):
     ## Populate processed dataframe
     # Add model run specifications
     processed_df = pd.DataFrame()
+    processed_df['scen_ix'] = scen_ixs
     processed_df['model_config'] = cap_results_df['model_config']
-    processed_df['rgt/lct'] = cap_results_df['lct']
+    processed_df['rgt/lct'] = cap_results_df['lct'].round(decimals=3)
     processed_df['ghg_reduction'] = cap_results_df['ghg_reduction']
     # Add heating and vehicle electrification rates for the entire region. These are based on the thermal loads of each
     processed_df['heating_elecfx_rate'] = cap_results_df['heating_elecfx_rate']
@@ -646,7 +650,7 @@ def full_results_processing(args):
     processed_df['addl_ev_load_mw'] = avg_ev_demand
 
     # Continue parameterizing the processed dataframe with other model configuration parameters
-    processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
+    # processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
     processed_df['rgt_boolean'] = [int(args.rgt_boolean)] * len(cap_results_df)
     processed_df['nuc_boolean'] = [int(args.nuclear_boolean)] * len(cap_results_df)
     processed_df['h2_boolean'] = [int(args.h2_boolean)] * len(cap_results_df)
@@ -718,18 +722,21 @@ def full_results_processing(args):
     avg_mwh_for_rg = (total_mwh_for_lcoe/T + int(args.btmpv_count_re) * btm_avg_mwh -
                       processed_df['elec_import_regional_avg_mw'])
 
-    processed_df['model_rgt'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
+    processed_df['model_rgt'] = (1 - (processed_df['gt_existing_util_regional_avg_mw'] +
                                     processed_df['gt_new_util_regional_avg_mw'] +
                                     processed_df['biofuel_util_regional_avg_mw'] +
-                                    args.nuclear_boolean * np.sum(args.nuc_avg_gen_mw)) / avg_mwh_for_rg
-    processed_df['model_lct'] = 1 - (processed_df['gt_existing_util_regional_avg_mw'] +
+                                    args.nuclear_boolean * np.sum(args.nuc_avg_gen_mw)) /
+                                 avg_mwh_for_rg).round(decimals=3)
+    processed_df['model_lct'] = (1 - (processed_df['gt_existing_util_regional_avg_mw'] +
                                     processed_df['gt_new_util_regional_avg_mw'] +
-                                    processed_df['biofuel_util_regional_avg_mw']) / avg_mwh_for_rg
+                                    processed_df['biofuel_util_regional_avg_mw']) / avg_mwh_for_rg).round(decimals=3)
 
     processed_df['rgt/lct'] = (int(args.rgt_boolean) * processed_df['model_rgt'] +
                                (1 - int(args.rgt_boolean)) * processed_df['model_lct'])
 
     # Write out the processed dataframe!
+    processed_df = processed_df.set_index('scen_ix')
+    processed_df = processed_df.sort_index()
     processed_df_filename = f'{args.results_dir}/{args.dir_time}/processed_results_{args.dir_time}.csv'
     processed_df.to_csv(processed_df_filename)
 
@@ -737,8 +744,8 @@ def full_results_processing(args):
 if __name__ == '__main__':
     args = get_args()
 
-    args.__dict__['results_dir'] = f'{args.results_dir}/model_configs/'
-    args.__dict__['dir_time'] = '20210303-155417_current'
+    args.__dict__['results_dir'] = f'{args.results_dir}'
+    args.__dict__['dir_time'] = 'fig1'
 
 
     full_results_processing(args)

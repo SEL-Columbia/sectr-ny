@@ -114,7 +114,7 @@ def load_timeseries(args):
         full_ev_load_hourly_mw          = np.tile(full_ev_avg_load_hourly_mw,(args.num_hours,1))
 
     # Clipping option to remove renewable generation potential values less than `min_val` MW/MW
-    clip_ts_for_numerical_issues = False
+    clip_ts_for_numerical_issues = True
     if clip_ts_for_numerical_issues:
         min_val = 1e-3
         onshore_pot_hourly  = np.where(onshore_pot_hourly < min_val, 0, onshore_pot_hourly)

@@ -61,11 +61,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     # Determine BTM PV and waste emissions based on whether the projection year is 2019
     if args.proj_year == 2019:
         btmpv_cap_mw = args.btmpv_cap_existing_mw
-        waste_emissions_mmt = args.waste_emissions_mmt
+        waste_emissions_kt = args.waste_emissions_kt
     else:
         btmpv_state_cap_mw = btmpv_capacity_projection(args.proj_year)
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]
-        waste_emissions_mmt = 0
+        waste_emissions_kt = 0
 
     # Define existing usable cap based on reserve requirement
     gt_existing_cap = [x / args.reserve_req for x in args.existing_gt_cap_mw]
@@ -306,10 +306,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
             # Add constraints for new HQ imports into NYC -- This is to ensure constant flow of power
             if i == 2:
-                if args.fix_existing_cap_boolean:
-                    m.addConstr(elec_import[j] == 0)
-                else:
-                    m.addConstr(elec_import[j] - args.hqch_capacity_factor * args.import_limit_mw[i] == 0)
+                # if args.fix_existing_cap_boolean:
+                #     m.addConstr(elec_import[j] == 0)
+                # else:
+                m.addConstr(elec_import[j] - args.hqch_capacity_factor * args.import_limit_mw[i] == 0)
 
         m.update()
 
@@ -459,22 +459,22 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
     ### Emissions accounting and constraint application ###
 
-    # Find electricity sector emissions -- 1e6 converts from t to MMt
+    # Find electricity sector emissions -- 1e3 converts from t to kt
     elec_emissions = (full_gt_new_sum_mwh / args.new_gt_efficiency + full_gt_existing_sum_mwh /
-                      args.existing_gt_efficiency) * args.ng_e_factor_t_mwh / (1e6 * args.num_years)
+                      args.existing_gt_efficiency) * args.ng_e_factor_t_mwh / (1e3 * args.num_years)
 
     # Heating emissions
-    heating_emissions = quicksum((args.flex_space_heating_emissions_mmt[i] + args.flex_const_heating_emissions_mmt[i])
+    heating_emissions = quicksum((args.flex_space_heating_emissions_kt[i] + args.flex_const_heating_emissions_kt[i])
                                  * (1 - model_data_eheating_ratio[i]) for i in range(args.num_nodes))
 
     # Accounting for heating emissions from DSS
     heating_emissions_dss = quicksum(int(args.dss_synthetic_ts) *
-                         args.flex_space_heating_emissions_mmt[i] * model_data_eheating_ratio[i] *
+                         args.flex_space_heating_emissions_kt[i] * model_data_eheating_ratio[i] *
                          full_dss50_ff_heating_load_nodal_avg[i] / full_ff_heating_load_nodal_avg[i]
                          for i in range(args.num_nodes))
 
     # Find transport emissions
-    trans_emissions = args.flex_trans_emissions_mmt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
+    trans_emissions = args.flex_trans_emissions_kt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
                                                          for i in range(args.num_nodes))
 
     # Sum total emissions and constrain to the ghg_target
@@ -482,9 +482,9 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                  heating_emissions +
                  heating_emissions_dss +
                  trans_emissions +
-                 args.fixed_trans_emissions_mmt +
-                 args.fixed_ind_emissions_mmt +
-                 waste_emissions_mmt) - ((1 - ghg_target) * args.baseline_emissions_mmt) == 0,
+                 args.fixed_trans_emissions_kt +
+                 args.fixed_ind_emissions_kt +
+                 waste_emissions_kt) - ((1 - ghg_target) * args.baseline_emissions_kt) == 0,
                 name='ghg_emissions_constraint')
 
     m.update()
@@ -519,7 +519,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.setAttr('RHS', cc_constr_list, 0)
 
         # Add constraint reflecting transformed denominator of linear-fractional objective (i.e. total electricity demand)
-        m.addConstr((eheating_load_avg + ev_load_avg) * T + np.sum(baseline_demand_hourly_mw[0:T]) *
+        m.addConstr((eheating_load_avg + ev_load_avg) + np.sum(baseline_demand_hourly_mw[0:T])/T *
                     cc_transform == 1)
         m.update()
 

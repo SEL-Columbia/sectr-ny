@@ -7,7 +7,7 @@ scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
-re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
+re_cost_scenario: 'low'          # or 'low' for low renewable generator and battery storage costs
 fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: False            # True: allow nuclear; False: no nuclear
@@ -68,7 +68,7 @@ battery_capex_low_mwh: 144e3
 battery_eff: 0.946 # One way - same efficiency on charge and discharge
 battery_self_discharge: 0.001
 battery_p2e_ratio_range: [0.25, 0.25] # Input min and max; if same, model will adjust constraint accordingly
-existing_battery_cap_mw:  [3, 20, 0, 10]
+existing_battery_cap_mw: [3, 20, 0, 10]
 existing_battery_cap_mwh: [5.2, 80, 0, 65]
 
 ## H2 storage assumptions
@@ -115,7 +115,7 @@ biofuel_daily_gen_mwh: [3289.041, 473.425, 1046.575, 2445.479]
 biofuel_cost_mwh: [20.66, 27.41, 27.05, 32.29]
 
 ## Imported electricity assumptions
-import_limit_mw: [1500, 0, 1250, 0]  # 2030: [1500, 0, 1000, 0]; current: [1500, 0, 0, 0]
+import_limit_mw: [1500, 0, 1250, 0]  # 2030: [1500, 0, 1250, 0]; current: [1500, 0, 0, 0]
 import_cost_mwh: [22.13, 0, 70, 0]
 hqch_capacity_factor: 0.9
 
@@ -138,19 +138,19 @@ reserve_req: 1.189
 nominal_storage_cost: 0.01
 nominal_trans_cost_mwh: 0.01
 
-## Emissions assumptions -- all quantities measured in CO2e
-baseline_emissions_mmt: 302.770
+## Emissions assumptions -- all quantities measured in tons CO2e
+baseline_emissions_kt: 302770
 ng_e_factor_t_mwh: 0.3966601
-flex_space_heating_emissions_mmt: [26.305, 12.388, 27.026, 11.749] # wait to be updated
-flex_const_heating_emissions_mmt: [9.477, 4.732, 13.517, 5.660] # wait to be updated
-flex_trans_emissions_mmt: 73.703
-fixed_trans_emissions_mmt: 21.956
-fixed_ind_emissions_mmt: 19.365
-waste_emissions_mmt: 2.784
+flex_space_heating_emissions_kt: [26305, 12388, 27026, 11749]
+flex_const_heating_emissions_kt: [9477, 4732, 13517, 5660]
+flex_trans_emissions_kt: 73703
+fixed_trans_emissions_kt: 21956
+fixed_ind_emissions_kt: 19365
+waste_emissions_kt: 2784
 
 # Gurobi solver parameters
-feasibility_tol: 0.0001
-optimality_tol: 0.0001
+feasibility_tol: 0.001
+optimality_tol: 0.001
 method: 2
 bar_conv_tol: 0
 bar_order: 0
