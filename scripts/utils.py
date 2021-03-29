@@ -111,7 +111,7 @@ def load_timeseries(args):
     full_ev_avg_load_hourly_mw      = np.mean(full_ev_load_hourly_mw, axis=0)
 
     if not args.ev_set_profile_boolean:
-        full_ev_load_hourly_mw          = np.tile(full_ev_avg_load_hourly_mw,(args.num_hours,1))
+        full_ev_load_hourly_mw  = np.tile(full_ev_avg_load_hourly_mw,(args.num_hours,1))
 
     # Clipping option to remove renewable generation potential values less than `min_val` MW/MW
     clip_ts_for_numerical_issues = True
@@ -121,7 +121,6 @@ def load_timeseries(args):
         offshore_pot_hourly = np.where(offshore_pot_hourly < min_val, 0, offshore_pot_hourly)
         solar_pot_hourly    = np.where(solar_pot_hourly < min_val, 0, solar_pot_hourly)
         btmpv_pot_hourly    = np.where(btmpv_pot_hourly < min_val, 0, btmpv_pot_hourly)
-
 
     return baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
            full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \

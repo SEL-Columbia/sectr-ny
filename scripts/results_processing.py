@@ -4,6 +4,7 @@ import argparse
 import yaml
 import numpy as np
 import pandas as pd
+from datetime import datetime as dt
 import datetime
 from glob import glob
 from scripts.utils import (get_args, load_timeseries, return_tx_dict,
@@ -114,6 +115,12 @@ def load_ts_based_results(args, processed_df):
 
     # Collect transmission array data
     tx_dict = return_tx_dict(args)
+
+    # Load potential timeseries for curtailment calcs
+    baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
+    full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
+    offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
+    flex_hydro_daily_mwh = load_timeseries(args)
 
     # Load all the timeseries files present in the corresponding folder
     ts_results_dir = f'{args.results_dir}/{args.dir_time}/ts_results'
@@ -275,6 +282,10 @@ def load_ts_based_results(args, processed_df):
     processed_df['curtailment_regional_avg_mw'] = np.sum(curtailment, axis=1)/T
     for ix in range(args.num_nodes):
         processed_df[f'curtailment_node_{ix + 1}_avg_mw'] = curtailment[:, ix] / T
+
+    # Add curtailment %
+    processed_df['curtailment_regional_avg_%'] = processed_df['curtailment_regional_avg_mw'] / \
+                                                 processed_df[f'wind_solar_uc_gen_regional_avg_mw']
 
     ## New GT
     # Add average new GT utilization results, regional and by node
@@ -448,6 +459,13 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     ## Populate timeseries Dataframe
     ts_results_df = pd.DataFrame()
+
+    ## First put in datetime array:
+    dt_parse = '%m/%d/%Y %H:%M'
+    base_date = dt.strptime(args.base_datetime, dt_parse)
+    dt_list =  [dt.strftime(base_date + datetime.timedelta(hours=x), dt_parse) for x in range(args.num_hours)]
+    ts_results_df['date.time'] = dt_list
+
 
     # First put in demand timeseries
     for ix in range(args.num_nodes):
@@ -651,6 +669,7 @@ def full_results_processing(args):
 
     # Continue parameterizing the processed dataframe with other model configuration parameters
     # processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
+    processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
     processed_df['rgt_boolean'] = [int(args.rgt_boolean)] * len(cap_results_df)
     processed_df['nuc_boolean'] = [int(args.nuclear_boolean)] * len(cap_results_df)
     processed_df['h2_boolean'] = [int(args.h2_boolean)] * len(cap_results_df)
@@ -745,7 +764,7 @@ if __name__ == '__main__':
     args = get_args()
 
     args.__dict__['results_dir'] = f'{args.results_dir}'
-    args.__dict__['dir_time'] = 'fig1'
+    args.__dict__['dir_time'] = '20210327-100006'
 
 
     full_results_processing(args)

@@ -3,10 +3,14 @@ from scripts.utils import *
 import numpy as np
 import datetime
 from scripts.results_processing import raw_results_retrieval, full_results_processing
+from scripts.utils import load_timeseries
+
 
 
 if __name__ == '__main__':
     args = get_args()
+
+    load_timeseries(args)
 
     dir_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     args.__dict__['dir_time'] = dir_time
@@ -14,29 +18,29 @@ if __name__ == '__main__':
 
     ### --- INPUT the model_config and the numbers in option 0, 1, 2, 3 --- ###
     # Define model config and set of heating, EV loads, and/or GHG reduction target appropriately
-    model_config = 3
+    model_config = 0
 
     # 0: LCT + Elec. specified, GHG returned
     if model_config == 0:
-        # lowc_targets = [
-        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
-        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
-        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
-        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
-        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
-        #                 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
-        #                 ]
-        # elec_ratios  = [
-        #                 0, 0, 0, 0, 0, 0, 0,
-        #                 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
-        #                 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4,
-        #                 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6,
-        #                 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8,
-        #                 1, 1, 1, 1, 1, 1, 1
-        #                 ]
+        lowc_targets = [
+                        0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+                        0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+                        0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+                        0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+                        0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+                        0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995,
+                        ]
+        elec_ratios  = [
+                        0, 0, 0, 0, 0, 0, 0,
+                        0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+                        0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4,
+                        0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6,
+                        0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8,
+                        1, 1, 1, 1, 1, 1, 1
+                        ]
 
-        lowc_targets = [0.381646687]
-        elec_ratios  = [0]
+        print(len(lowc_targets))
+        print(len(elec_ratios))
 
 
         dghg_targets = [np.nan]*len(elec_ratios) # indeterminate
