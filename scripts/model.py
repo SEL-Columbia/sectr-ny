@@ -286,7 +286,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                             ((1 - args.battery_self_discharge) * batt_level[args.num_hours-1] - batt_level[j]))
                 m.addConstr(h2_discharge[j] / args.h2_eff - args.h2_eff * h2_charge[j] ==
                             ((1 - args.h2_self_discharge) * h2_level[args.num_hours-1] - h2_level[j]))
-                # print('')
 
             else:
                 # Battery/H2 energy conservation constraints
@@ -306,10 +305,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
             # Add constraints for new HQ imports into NYC -- This is to ensure constant flow of power
             if i == 2:
-                # if args.fix_existing_cap_boolean:
-                #     m.addConstr(elec_import[j] == 0)
-                # else:
-                m.addConstr(elec_import[j] - args.hqch_capacity_factor * args.import_limit_mw[i] == 0)
+                if args.fix_existing_cap_boolean:
+                    m.addConstr(elec_import[j] == 0)
+                else:
+                    m.addConstr(elec_import[j] - args.hqch_capacity_factor * args.import_limit_mw[i] == 0)
 
         m.update()
 
