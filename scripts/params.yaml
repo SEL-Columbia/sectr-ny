@@ -28,8 +28,8 @@ same_nodal_costs: False          # True: Set nodal costs to be the same
 proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
-num_years: 6
-num_hours: 52608
+num_years: 1
+num_hours: 8760
 num_nodes: 4
 i_rate: 0.05
 base_datetime: '1/1/2007 0:00'
