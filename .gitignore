@@ -7,3 +7,4 @@ extra_code/*
 nys_testing.egg-info/*
 plots/*
 documentation/*
+figures/*

@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     ### --- INPUT the model_config and the numbers in option 0, 1, 2, 3 --- ###
     # Define model config and set of heating, EV loads, and/or GHG reduction target appropriately
-    model_config = 0
+    model_config = 1
 
     # 0: LCT + Elec. specified, GHG returned
     if model_config == 0:
@@ -39,38 +39,22 @@ if __name__ == '__main__':
         #                 1, 1, 1, 1, 1, 1, 1
         #                 ]
 
-        lowc_targets = [
-                        0.4, 0.5,
-                        0.4, 0.5,
-                        0.4, 0.5,
-                        0.4, 0.5,
-                        0.4, 0.5,
-                        0.4, 0.5, ]
+        lowc_targets = [0.381646687]
 
-        elec_ratios = [
-                        0, 0,
-                        0.2, 0.2,
-                        0.4, 0.4,
-                        0.6, 0.6,
-                        0.8, 0.8,
-                        1, 1,
-                        ]
-
-        print(len(lowc_targets))
-        print(len(elec_ratios))
+        elec_ratios = [0]
 
         dghg_targets = [np.nan]*len(elec_ratios) # indeterminate
 
     # 1: LCT + GHG specified, Elec. returned
     elif model_config == 1:
-        lowc_targets = [0.381646687]
-        dghg_targets = [-0.03561]
+        lowc_targets = [0.6]
+        dghg_targets = [0.4]
         elec_ratios = [np.nan]*len(lowc_targets) # indeterminate
 
     # 2: Elec. + GHG specified, LCT returned.
     elif model_config  == 2:
-        dghg_targets = [0.4, 0.4]
-        elec_ratios = [0.3, 0.6]
+        dghg_targets = [0.4]
+        elec_ratios = [0.4]
         lowc_targets   = [np.nan]*len(dghg_targets) # indeterminate
 
     # 3: Minimize LCOE for GHG specified, LCT/RG and Elec. returned

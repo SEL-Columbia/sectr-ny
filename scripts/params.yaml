@@ -23,6 +23,7 @@ ev_set_profile_boolean: True     # True: Used user-provided EV charging profile;
 greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro to zero
 copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
+no_hydro_gen: False
 
 # input year
 proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw

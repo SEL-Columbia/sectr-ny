@@ -98,8 +98,61 @@ def cost_calculations(args, cap_results_df, processed_df):
                        total_existing_gt_fuel_cost + total_new_gt_ramp_cost + total_existing_gt_ramp_cost +
                        total_imports_cost)
 
+    ## Find wind, solar LCOEs based on generation and curtailment
+    # Calculate the LCOES of wind and solar
+
+
+    processed_df['onshore_gen_lcoe'] =  np.maximum(new_onshore_costs/ \
+        np.array((processed_df['onshore_uc_gen_mw'] - processed_df['onshore_curtailed_gen_mw']) * T), 0)
+
+    processed_df['offshore_gen_lcoe'] = np.maximum(new_offshore_cost /\
+        np.array((processed_df['offshore_uc_gen_mw'] - processed_df['offshore_curtailed_gen_mw']) * T), 0)
+
+    processed_df['solar_gen_lcoe'] = np.maximum(new_solar_cost /\
+        np.array((processed_df['solar_uc_gen_mw'] - processed_df['solar_curtailed_gen_mw']) * T), 0)
+
+    processed_df['wind_solar_gen_lcoe'] = (new_onshore_costs + new_offshore_cost + new_solar_cost) / \
+        np.array((processed_df[f'wind_solar_uc_gen_regional_avg_mw'] - processed_df['curtailment_regional_avg_mw']) * T)
+
+
+    # Find gas LCOE
+    existing_gas_gen_cost = np.sum((np.array(args.existing_gt_cap_mw) * np.array(args.cap_market_cost_mw_yr)) *
+                                   args.num_years)
+    processed_df['gas_gen_lcoe'] = (new_gt_cost + total_new_gt_fuel_cost + total_existing_gt_fuel_cost +
+                                    total_new_gt_ramp_cost + total_existing_gt_ramp_cost + existing_gas_gen_cost) / \
+                                   ((processed_df['gt_new_util_regional_avg_mw'] +
+                                     processed_df['gt_existing_util_regional_avg_mw']) * T)
+
+    ## Find battery cost per MWh throughput
+
+    processed_df['battery_cost_per_mwh_discharge'] = new_batt_cost/(processed_df['battery_discharge_regional_avg_mw'] * T)
+
+
     return new_cap_cost, generation_cost, supp_cost
 
+def allocate_curtailment(args, ts_results_df):
+
+    onshore_df = pd.DataFrame()
+    offshore_df = pd.DataFrame()
+    solar_df = pd.DataFrame()
+
+    for ix in range(args.num_nodes):
+        frac_curtail = ts_results_df[f'energy_balance_slack_node_{ix+1}'] / \
+                       (ts_results_df[f'onshore_uc_gen_node_{ix+1}'] + ts_results_df[f'offshore_uc_gen_node_{ix+1}'] +
+                        ts_results_df[f'solar_uc_gen_node_{ix+1}'])
+
+
+        onshore_df[f'onshore_curtailed_gen_node_{ix+1}'] = frac_curtail * ts_results_df[f'onshore_uc_gen_node_{ix+1}']
+        offshore_df[f'offshore_curtailed_gen_node_{ix+1}'] = frac_curtail * ts_results_df[f'offshore_uc_gen_node_{ix+1}']
+        solar_df[f'solar_curtailed_gen_node_{ix+1}'] = frac_curtail * ts_results_df[f'solar_uc_gen_node_{ix+1}']
+
+
+
+    ts_results_df = ts_results_df.join(onshore_df).join(offshore_df).join(solar_df)
+    ts_results_df = ts_results_df.fillna(0)
+
+
+    return ts_results_df
 
 def load_ts_based_results(args, processed_df):
     '''
@@ -115,6 +168,9 @@ def load_ts_based_results(args, processed_df):
 
     # Collect transmission array data
     tx_dict = return_tx_dict(args)
+
+    # Get cost dict
+    cost_dict = return_costs_for_model(args)
 
     # Load potential timeseries for curtailment calcs
     baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
@@ -154,12 +210,23 @@ def load_ts_based_results(args, processed_df):
     h2_charge = np.zeros((len(ts_results_files), args.num_nodes))
     h2_discharge = np.zeros((len(ts_results_files), args.num_nodes))
     elec_import = np.zeros((len(ts_results_files), args.num_nodes))
+    hydro_gen = np.zeros((len(ts_results_files), args.num_nodes))
     tx_util = np.zeros((len(ts_results_files), len(tx_dict)))
     tx_nodal_avg_import = np.zeros((len(ts_results_files), args.num_nodes)) # transmission import sum for each node
 
     battery_losses = np.zeros((len(ts_results_files), args.num_nodes))
     h2_losses      = np.zeros((len(ts_results_files), args.num_nodes))
     tx_losses      = np.zeros((len(ts_results_files), args.num_nodes))
+
+    onshore_curtailed_mw = np.zeros((len(ts_results_files), args.num_nodes))
+    offshore_curtailed_mw = np.zeros((len(ts_results_files), args.num_nodes))
+    solar_curtailed_mw   = np.zeros((len(ts_results_files), args.num_nodes))
+
+    onshore_uc_gen_mw = np.zeros((len(ts_results_files), args.num_nodes))
+    offshore_uc_gen_mw = np.zeros((len(ts_results_files), args.num_nodes))
+    solar_uc_gen_mw = np.zeros((len(ts_results_files), args.num_nodes))
+
+    excess_lowc_gen = np.zeros(len(ts_results_files))
 
     # Iterate through the ts results files, each corresponding to a single scenario
     for ix, file in enumerate(ts_results_files):
@@ -245,6 +312,58 @@ def load_ts_based_results(args, processed_df):
                              np.sum(np.array([ts_csv[f'h2_level_node_{i+1}'] for i in range(args.num_nodes)]).T,
                                     axis=0) * args.h2_self_discharge
 
+        # Hydropower generation
+        hydro_gen[ix] = (np.sum(np.array([ts_csv[f'fixed_hydro_gen_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                  axis=0) +
+                         np.sum(np.array([ts_csv[f'flex_hydro_node_{i+1}'] for i in range(args.num_nodes)]).T,
+                                  axis=0))
+
+        # Determine generation and curtailment sums
+
+        onshore_curtailed_mw[ix] = np.sum(np.array([ts_csv[f'onshore_curtailed_gen_node_{i+1}'] for i
+                                                             in range(args.num_nodes)]).T, axis=0)
+        offshore_curtailed_mw[ix] = np.sum(np.array([ts_csv[f'offshore_curtailed_gen_node_{i+1}'] for i
+                                                    in range(args.num_nodes)]).T, axis=0)
+        solar_curtailed_mw[ix] = np.sum(np.array([ts_csv[f'solar_curtailed_gen_node_{i+1}'] for i
+                                                    in range(args.num_nodes)]).T, axis=0)
+
+        onshore_uc_gen_mw[ix] = np.sum(np.array([ts_csv[f'onshore_uc_gen_node_{i+1}'] for i
+                                                             in range(args.num_nodes)]).T, axis=0)
+        offshore_uc_gen_mw[ix] = np.sum(np.array([ts_csv[f'offshore_uc_gen_node_{i+1}'] for i
+                                                 in range(args.num_nodes)]).T, axis=0)
+        solar_uc_gen_mw[ix] = np.sum(np.array([ts_csv[f'solar_uc_gen_node_{i + 1}'] for i
+                                                 in range(args.num_nodes)]).T, axis=0)
+
+        ## Find excess generation (equal to curtailment plus battery charging)
+        demand = (np.sum(ts_csv.loc[:, 'baseline_demand_node_1':'baseline_demand_node_4'], axis=1) +
+                  np.sum(ts_csv.loc[:, 'ev_charging_node_1':'ev_charging_node_4'], axis=1) +
+                  np.sum(ts_csv.loc[:, 'heating_demand_node_1':'heating_demand_node_4'], axis=1))
+
+        imports_and_btm = (np.sum(ts_csv.loc[:, 'elec_import_node_1':'elec_import_node_4'], axis=1) +
+                           np.sum(ts_csv.loc[:, 'btmpv_uc_gen_node_1':'btmpv_uc_gen_node_4'], axis=1))
+
+        wind_and_solar = (np.sum(ts_csv.loc[:, 'onshore_uc_gen_node_1':'onshore_uc_gen_node_4'], axis=1) +
+                          np.sum(ts_csv.loc[:, 'offshore_uc_gen_node_1':'offshore_uc_gen_node_4'], axis=1) +
+                          np.sum(ts_csv.loc[:, 'solar_uc_gen_node_1':'solar_uc_gen_node_4'], axis=1))
+
+        hydro = (np.sum(ts_csv.loc[:, 'fixed_hydro_gen_node_1':'fixed_hydro_gen_node_4'], axis=1) +
+                 np.sum(ts_csv.loc[:, 'flex_hydro_node_1':'flex_hydro_node_2'], axis=1))
+
+        gas = np.round((np.sum(ts_csv.loc[:, 'gt_new_util_node_1':'gt_new_util_node_4'], axis=1) +
+                        np.sum(ts_csv.loc[:, 'gt_existing_util_node_1':'gt_existing_util_node_4'], axis=1)))
+
+        diff = demand - imports_and_btm - wind_and_solar - hydro
+
+        pos_days = np.argwhere(diff > 0)[:, 0]
+        neg_days = np.argwhere(diff < 0)[:, 0]
+        gas_days = np.argwhere(gas == 0)[:, 0]
+
+        excess_lowc_gen[ix] = -np.sum(diff[gas_days]) / T
+
+        # curtail = np.sum(ts_csv.loc[:, 'energy_balance_slack_node_1':  'energy_balance_slack_node_4'], axis=1)
+        # batt_charging =  np.sum(ts_csv.loc[:, 'batt_charge_node_1':'batt_charge_node_4'], axis=1)
+        # excess_lowc_gen[ix] = np.mean(curtail + batt_charging)
+
         # Find tx flow
         tx_output_cols = []
         for jx, tx_key in enumerate(tx_dict.keys()):
@@ -269,6 +388,11 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'peak_demand_node_{ix+1}_mw'] = peak_nodal_demand[:, ix]
 
+    # Add hydro generation
+    processed_df['hydro_gen_regional_mw'] = np.sum(hydro_gen, axis=1) /T
+    for ix in range(args.num_nodes):
+        processed_df[f'hydro_gen_node_{ix+1}_mw'] = hydro_gen[:, ix] / T
+
     ## Add uncurtailed generation from wind + solar
     processed_df[f'wind_solar_uc_gen_regional_avg_mw'] = solar_wind_gen_regional_avg_mw
     for ix in range(args.num_nodes):
@@ -285,7 +409,25 @@ def load_ts_based_results(args, processed_df):
 
     # Add curtailment %
     processed_df['curtailment_regional_avg_%'] = processed_df['curtailment_regional_avg_mw'] / \
-                                                 processed_df[f'wind_solar_uc_gen_regional_avg_mw']
+                                                 processed_df[f'wind_solar_uc_gen_regional_avg_mw'] * 100
+
+    # Add resource specific curtailment calculations
+    processed_df['onshore_curtailed_gen_mw'] = np.sum(onshore_curtailed_mw, axis=1)/T
+    processed_df['offshore_curtailed_gen_mw'] = np.sum(offshore_curtailed_mw, axis=1)/T
+    processed_df['solar_curtailed_gen_mw'] = np.sum(solar_curtailed_mw, axis=1)/T
+
+    # Add uncurtailed gen
+    processed_df['onshore_uc_gen_mw'] = np.sum(onshore_uc_gen_mw, axis=1) / T
+    processed_df['offshore_uc_gen_mw'] = np.sum(offshore_uc_gen_mw, axis=1) / T
+    processed_df['solar_uc_gen_mw'] = np.sum(solar_uc_gen_mw, axis=1) / T
+
+    # Add curtailment percents
+    processed_df['onshore_curtailment_%'] = (100 * processed_df['onshore_curtailed_gen_mw'].round(decimals=0) /
+                                             processed_df['onshore_uc_gen_mw'])
+    processed_df['offshore_curtailment_%'] = (100 * processed_df['offshore_curtailed_gen_mw'].round(decimals=0) /
+                                             processed_df['offshore_uc_gen_mw'])
+    processed_df['solar_curtailment_%'] = (100 * processed_df['solar_curtailed_gen_mw'].round(decimals=0) /
+                                             processed_df['solar_uc_gen_mw'])
 
     ## New GT
     # Add average new GT utilization results, regional and by node
@@ -311,16 +453,30 @@ def load_ts_based_results(args, processed_df):
 
     ## Add GT CF results
     # New GT
-    processed_df['gt_new_util_regional_cf'] = (processed_df['gt_new_util_regional_avg_mw'] /
-                                               processed_df['new_gt_cap_mw']).fillna(0)
+    processed_df['gt_new_util_regional_cf_%'] = (processed_df['gt_new_util_regional_avg_mw'] /
+                                               processed_df['new_gt_cap_mw']).fillna(0) * 100
     # Existing GT
-    processed_df['gt_existing_util_regional_cf'] = (processed_df['gt_existing_util_regional_avg_mw'] /
-                                                    processed_df['existing_gt_cap_mw']).fillna(0)
+    processed_df['gt_existing_util_regional_cf_%'] = (processed_df['gt_existing_util_regional_avg_mw'] /
+                                                    processed_df['existing_gt_cap_mw']).fillna(0) * 100
 
     ## Add ramping
     # Add averaging ramping results for the full region
     processed_df['new_gt_ramp_avg_mw'] = total_gt_new_ramping/T
     processed_df['existing_gt_ramp_avg_mw'] = total_gt_existing_ramping/T
+
+    ## Add upstate and downstate GT utilization
+    processed_df['new_gt_util_upstate_cf_%'] = (np.sum(processed_df.loc[:, 'gt_new_util_node_1_avg_mw':
+                                                                       'gt_new_util_node_2_avg_mw'], axis=1) /
+                                            processed_df['new_gt_cap_upstate_mw']) * 100
+    processed_df['new_gt_util_downstate_cf_%'] = (np.sum(processed_df.loc[:, 'gt_new_util_node_3_avg_mw':
+                                                                        'gt_new_util_node_4_avg_mw'], axis=1) /
+                                             processed_df['new_gt_cap_downstate_mw']) * 100
+    processed_df['existing_gt_util_upstate_cf_%'] = (np.sum(processed_df.loc[:, 'gt_existing_util_node_1_avg_mw':
+                                                                        'gt_existing_util_node_2_avg_mw'], axis=1) /
+                                             processed_df['existing_gt_cap_upstate_mw']) * 100
+    processed_df['existing_gt_util_downstate_cf_%'] = (np.sum(processed_df.loc[:, 'gt_existing_util_node_3_avg_mw':
+                                                                          'gt_existing_util_node_4_avg_mw'], axis=1) /
+                                               processed_df['existing_gt_cap_downstate_mw']) * 100
 
     # Add biofuel utilization, regional by node
     processed_df['biofuel_util_regional_avg_mw'] = np.sum(biofuel_util, axis=1) / T
@@ -382,6 +538,27 @@ def load_ts_based_results(args, processed_df):
         tx_output_col = f'tx_avg_util_{tx_key.split("_")[-2]}_to_{tx_key.split("_")[-1]}_mw'
         processed_df[tx_output_col] = tx_util[:, jx]
 
+    # Find average utilization of positive and negative transmission
+    tx_pos_util = 0
+    tx_neg_util = 0
+    tx_pos_cap = 0
+    tx_neg_cap = 0
+
+    for jx, tx_key in enumerate(tx_dict.keys()):
+        out_node = int(tx_key.split("_")[-2])
+        in_node = int(tx_key.split("_")[-1])
+
+        if out_node < in_node:
+            tx_pos_util += processed_df[f'tx_avg_util_{out_node}_to_{in_node}_mw']
+            tx_pos_cap += processed_df[f'new_tx_limit_{out_node}_{in_node}_mw']
+        else:
+            tx_neg_util += processed_df[f'tx_avg_util_{out_node}_to_{in_node}_mw']
+            tx_neg_cap += processed_df[f'new_tx_limit_{out_node}_{in_node}_mw']
+
+    processed_df['tx_pos_avg_util_%'] = tx_pos_util/tx_pos_cap * 100
+    processed_df['tx_neg_avg_util_%'] = tx_neg_util/tx_neg_cap * 100
+
+
     # Add average losses from battery and h2, regional and by node
     processed_df['battery_losses_regional_avg_mw'] = np.sum(battery_losses, axis=1)/T
     for ix in range(args.num_nodes):
@@ -395,12 +572,12 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'tx_losses_node_{ix+1}_avg_mw'] = tx_losses[:, ix]
 
+    ## Add excess low-carbon generation
+    processed_df['excess_lowc_gen_regional_avg_mw'] = excess_lowc_gen
     # Fill NA values
     processed_df = processed_df.fillna('NaN')
 
     return processed_df
-
-
 
 
 def raw_results_retrieval(args, m, model_config, scen_ix):
@@ -539,6 +716,8 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
             tx_ts_results[j, ix] = m.getVarByName(f'{tx_ts_string}[{j}]').X/cf_mult
         ts_results_df[f'{tx_ts_string}'] = tx_ts_results[:, ix]
 
+    # Allocate the curtailment
+    ts_results_df = allocate_curtailment(args, ts_results_df)
 
     # Find the LCT
     if model_config == 0 or model_config == 1:
@@ -666,7 +845,8 @@ def full_results_processing(args):
     # Add additional electic heating and vehicle loads
     processed_df['addl_heating_load_mw'] = avg_heating_demand
     processed_df['addl_ev_load_mw'] = avg_ev_demand
-
+    processed_df['total_demand_mw'] = (np.sum(np.mean(baseline_demand_hourly_mw, axis=0)) +
+                                       processed_df['addl_heating_load_mw'] + processed_df['addl_ev_load_mw'])
     # Continue parameterizing the processed dataframe with other model configuration parameters
     # processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
     processed_df['re_cost_scenario'] = cap_results_df['re_cost_scenario']
@@ -682,6 +862,7 @@ def full_results_processing(args):
     processed_df['greenfield_boolean'] = [int(args.greenfield_boolean)] * len(cap_results_df)
     processed_df['copper_plate_boolean'] = [int(args.copper_plate_boolean)] * len(cap_results_df)
     processed_df['same_nodal_costs'] = [int(args.same_nodal_costs)] * len(cap_results_df)
+    processed_df['no_hydro_gen'] = [int(args.no_hydro_gen)] * len(cap_results_df)
 
     # Add the electrification rates by node and by EV/heating
     for ix in range(args.num_nodes):
@@ -691,11 +872,17 @@ def full_results_processing(args):
     # Add returned capacities of new infrastructure
     processed_df['onshore_cap_mw'] = np.sum(onshore_cap, axis=1)
     processed_df['offshore_cap_mw'] = np.sum(offshore_cap, axis=1)
+    processed_df['total_wind_gw'] = (processed_df['onshore_cap_mw'] + processed_df['offshore_cap_mw']) / 1000
     processed_df['solar_cap_mw'] = np.sum(solar_cap, axis=1)
+    processed_df['solar_cap_gw'] = processed_df['solar_cap_mw']/1000
+    processed_df['total_windsolar_cap_gw'] = processed_df['total_wind_gw'] + processed_df['solar_cap_gw']
     processed_df['new_gt_cap_mw'] = np.sum(gt_new_cap, axis=1)
     processed_df['existing_gt_cap_mw'] = np.sum(args.existing_gt_cap_mw)
+    processed_df['total_gas_cap_gw'] = (processed_df['new_gt_cap_mw'] + processed_df['existing_gt_cap_mw'])/1000
     processed_df['battery_energy_cap_mwh'] = np.sum(battery_energy_cap, axis=1)
     processed_df['battery_power_cap_mw'] = np.sum(battery_power_cap, axis=1)
+    processed_df['battery_energy_cap_gwh'] = processed_df['battery_energy_cap_mwh']/1000
+
     processed_df['h2_energy_cap_mwh'] = np.sum(h2_energy_cap, axis=1)
     processed_df['h2_power_cap_mw'] = np.sum(h2_power_cap, axis=1)
     processed_df['btm_power_cap_mw'] = np.sum(btm_cap, axis=1)
@@ -704,9 +891,24 @@ def full_results_processing(args):
     processed_df['nuc_gen_avg_mw'] = int(args.nuclear_boolean) * np.sum(args.nuc_avg_gen_mw)
 
     # Add new transmission limits
+    # total_pos_cap_gw_mi = pd.Series()
+    # total_neg_cap_gw_mi = pd.Series()
+
+    processed_df['tx_pos_gw-mi'] = 0
+    processed_df['tx_neg_gw-mi'] = 0
+
     for ix, tx_key in enumerate(tx_dict.keys()):
-        new_tx_cap_string = f'new_tx_limit_{int(tx_key.split("_")[-2])}_{int(tx_key.split("_")[-1])}'
+        out_node = int(tx_key.split("_")[-2])
+        in_node = int(tx_key.split("_")[-1])
+        new_tx_cap_string = f'new_tx_limit_{out_node}_{in_node}'
+        tx_dict_string = f'existing_tx_limit_{out_node}_{in_node}'
+        if out_node < in_node:
+            processed_df['tx_pos_gw-mi'] += (cap_results_df[new_tx_cap_string] * tx_dict[tx_dict_string][2]) / 1000
+        else:
+            processed_df['tx_neg_gw-mi'] += (cap_results_df[new_tx_cap_string] * tx_dict[tx_dict_string][2]) / 1000
+
         processed_df[new_tx_cap_string+'_mw'] = cap_results_df[new_tx_cap_string]
+
 
     nodal_capacity_strings = ['onshore_cap_node_', 'offshore_cap_node_', 'solar_cap_node_', 'gt_new_cap_node_',
                               'batt_energy_cap_node_', 'h2_energy_cap_node_']
@@ -717,6 +919,26 @@ def full_results_processing(args):
                 processed_df[f'{cap_str}{jx+1}_mw'] = cap_results_df[f'{cap_str}{jx+1}']
             else:
                 processed_df[f'{cap_str}{jx+1}_mwh'] = cap_results_df[f'{cap_str}{jx + 1}']
+
+    # Add upstate and downstate quantities
+    processed_df['low-c_cap_upstate_mw'] = \
+        np.sum(processed_df.loc[:, 'onshore_cap_node_1_mw':'onshore_cap_node_2_mw'], axis=1) + \
+        np.sum(processed_df.loc[:, 'solar_cap_node_1_mw':'solar_cap_node_2_mw'], axis=1) + \
+        (1-processed_df['no_hydro_gen']) * np.sum(args.hydro_cap_mw)
+    processed_df['low-c_cap_downstate_mw'] = \
+        np.sum(processed_df.loc[:, 'offshore_cap_node_3_mw':'offshore_cap_node_4_mw'], axis=1) + \
+        np.sum(processed_df.loc[:, 'solar_cap_node_3_mw':'solar_cap_node_4_mw'], axis=1)
+
+    processed_df['batt_cap_upstate_mwh'] = np.sum(processed_df.loc[:, 'batt_energy_cap_node_1_mwh':
+                                                                  'batt_energy_cap_node_2_mwh'], axis=1)
+    processed_df['batt_cap_downstate_mwh'] = np.sum(processed_df.loc[:, 'batt_energy_cap_node_3_mwh':
+                                                                    'batt_energy_cap_node_4_mwh'], axis=1)
+    processed_df['new_gt_cap_upstate_mw'] = np.sum(processed_df.loc[:, 'gt_new_cap_node_1_mw':'gt_new_cap_node_2_mw'],
+                                                axis=1)
+    processed_df['new_gt_cap_downstate_mw'] = np.sum(processed_df.loc[:, 'gt_new_cap_node_3_mw':'gt_new_cap_node_4_mw'],
+                                                  axis=1)
+    processed_df['existing_gt_cap_upstate_mw'] = args.existing_gt_cap_mw[0] + args.existing_gt_cap_mw[1]
+    processed_df['existing_gt_cap_downstate_mw'] = args.existing_gt_cap_mw[2] + args.existing_gt_cap_mw[3]
 
     # Load results that depend on timeseries
     processed_df = load_ts_based_results(args, processed_df)
@@ -754,17 +976,27 @@ def full_results_processing(args):
                                (1 - int(args.rgt_boolean)) * processed_df['model_lct'])
 
     # Write out the processed dataframe!
+    processed_df = processed_df.round(decimals=3)
     processed_df = processed_df.set_index('scen_ix')
     processed_df = processed_df.sort_index()
-    processed_df_filename = f'{args.results_dir}/{args.dir_time}/processed_results_{args.dir_time}.csv'
-    processed_df.to_csv(processed_df_filename)
+    processed_df_filename = f'{args.results_dir}/{args.dir_time}/processed_results_{args.dir_time}.xlsx'
+    processed_df.to_excel(processed_df_filename)
 
 
 if __name__ == '__main__':
     args = get_args()
 
     args.__dict__['results_dir'] = f'{args.results_dir}'
-    args.__dict__['dir_time'] = '20210327-100006'
-
-
+    args.__dict__['dir_time'] = 'fig1'
+    #
+    #
     full_results_processing(args)
+    #
+    # ts_files = glob(f'{args.results_dir}/{args.dir_time}/ts_results/*.csv')
+    #
+    # for file in ts_files:
+    #     print(file)
+    #     ts_df = pd.read_csv(file, index_col=0)
+    #     new_ts_df = allocate_curtailment(args, ts_df)
+    #
+    #     new_ts_df.round(decimals=5).to_csv(file)

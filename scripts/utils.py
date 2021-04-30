@@ -260,6 +260,8 @@ def return_tx_dict(args):
                                             index_col=0)
     tx_matrix_om_costs = pd.read_excel(f'{args.data_dir}/transmission_matrix_om_costs.xlsx', header=0,
                                        index_col=0)
+    tx_matrix_distances = pd.read_excel(f'{args.data_dir}/transmission_matrix_distances_mi.xlsx', header=0,
+                                       index_col=0)
 
     # Define annualization rate -- here, we assume a 20 year annualization period for transmission
     annualization_cap = annualization_rate(args.i_rate, 20)
@@ -273,9 +275,17 @@ def return_tx_dict(args):
     for i in range(len(tx_matrix_limits)):
         for j in range(len(tx_matrix_limits.columns)):
             if tx_matrix_limits.iloc[i, j] > 0:
-                tx_dict[f'existing_tx_limit_{i+1}_{j+1}'] = (tx_matrix_limits.iloc[i, j], args.num_years *
+                tx_dict[f'existing_tx_limit_{i+1}_{j+1}'] = (tx_matrix_limits.iloc[i, j],
+                                                             args.num_years *
                                                                  (annualization_cap *
                                                                   tx_matrix_install_costs.iloc[i, j] +
-                                                                  tx_matrix_om_costs.iloc[i, j]))
+                                                                  tx_matrix_om_costs.iloc[i, j]),
+                                                             tx_matrix_distances.iloc[i,j])
 
     return tx_dict
+
+if __name__ == '__main__':
+    args = get_args()
+    tx_dict = return_tx_dict(args)
+
+    print(tx_dict)
