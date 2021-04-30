@@ -447,13 +447,17 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         frac_netload = 1 - lowc_target
         # Scale to avoid numerical issues on the quadratic constraint
         numer_scale = 1e6
+        demand_for_lcp = (full_demand_sum_mwh - full_hq_imports_sum_mwh) * frac_netload
+
         if args.rgt_boolean:  # Apply RGT constaint
-            m.addConstr((full_gt_new_sum_mwh + full_gt_existing_sum_mwh +
-                         full_nuclear_sum_mwh + full_biofuel_sum_mwh)/numer_scale -
-                        (full_demand_sum_mwh - full_hq_imports_sum_mwh) * frac_netload/numer_scale <= 0)
+            carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
         else: # Apply LCT constraint
-            m.addConstr((full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_biofuel_sum_mwh)/numer_scale -
-                        (full_demand_sum_mwh - full_hq_imports_sum_mwh) * frac_netload/numer_scale <= 0)
+            carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_biofuel_sum_mwh)
+
+        if args.lcp_constraint_ge: # LCP >= LCP Target
+            m.addConstr(carbon_gen/numer_scale - demand_for_lcp/numer_scale <= 0)
+        else: # LCP >= LCP Target
+            m.addConstr(carbon_gen/numer_scale - demand_for_lcp/numer_scale == 0)
     m.update()
 
     ### Emissions accounting and constraint application ###
