@@ -985,9 +985,4 @@ def full_results_processing(args):
 
 if __name__ == '__main__':
     args = get_args()
-
-    args.__dict__['results_dir'] = f'{args.results_dir}'
-    args.__dict__['dir_time'] = 'fig1'
-    #
-    #
     full_results_processing(args)
