@@ -1,8 +1,5 @@
-current_assumptions_spreadsheets/*
-data_uploads/*
 model_results/*
-extra_code/*
 *__pycache__*
 *.idea*
-nys_testing.egg-info/*
-plots/*
+sectr-ny.egg-info/*
+figures/*
