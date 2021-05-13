@@ -286,6 +286,3 @@ def return_tx_dict(args):
 
 if __name__ == '__main__':
     args = get_args()
-    tx_dict = return_tx_dict(args)
-
-    print(tx_dict)

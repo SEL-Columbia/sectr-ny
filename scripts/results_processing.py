@@ -991,12 +991,3 @@ if __name__ == '__main__':
     #
     #
     full_results_processing(args)
-    #
-    # ts_files = glob(f'{args.results_dir}/{args.dir_time}/ts_results/*.csv')
-    #
-    # for file in ts_files:
-    #     print(file)
-    #     ts_df = pd.read_csv(file, index_col=0)
-    #     new_ts_df = allocate_curtailment(args, ts_df)
-    #
-    #     new_ts_df.round(decimals=5).to_csv(file)
