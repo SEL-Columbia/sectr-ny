@@ -689,7 +689,4 @@ def full_results_processing(args):
 
 if __name__ == '__main__':
     args = get_args()
-    args.__dict__['dir_time'] = '20210302-112325_baseline'
-
-
     full_results_processing(args)
