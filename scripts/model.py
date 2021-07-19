@@ -90,7 +90,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         if args.same_eheating_ev_rate_boolean:
             # Set the eheating and ev_rate equal
             m.addConstr(eheating_rate == ev_rate)
-        
+
         # Find all interconnections for the current node
         tx_lines_set = sorted([j for j in tx_dict.keys() if str(i + 1) in j])
         # Find the complementary indices for the interconnections
@@ -327,14 +327,14 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         if args.ev_set_profile_boolean:
             for j in trange:
                 m.addConstr(ev_charging[j] == ev_rate * full_ev_load_hourly_mw[j,i])
-        
+
         else:
             # Constrain EV charging rate
             m.addConstr(ev_charging[j] - ev_rate * full_ev_avg_load_hourly_mw[i] / float(args.ev_charging_p2e_ratio) <= 0)
 
             for j in range(0, int(T / 24)):
                 jrange_ev = range(j * 24, j * 24 + args.ev_charging_hours)
-    
+
                 if args.ev_charging_method == 'flexible':
                     m.addConstr(quicksum(ev_charging[args.ev_hours_start + k] for k in jrange_ev) ==
                                 ev_rate * full_ev_avg_load_hourly_mw[i] * 24)
@@ -346,7 +346,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                     raise ValueError('Invalid EV charging method')
 
         m.update()
-        
+
 
 
     #####----------------------------------------------------------------------------------------------------------#####
@@ -491,7 +491,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                 name='ghg_emissions_constraint')
 
     m.update()
-    
+
 
     if model_config == 3:
         ## Model Modifications for LCOE Minimization
@@ -522,7 +522,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.setAttr('RHS', cc_constr_list, 0)
 
         # Add constraint reflecting transformed denominator of linear-fractional objective (i.e. total electricity demand)
-        m.addConstr((eheating_load_avg + ev_load_avg) + np.sum(baseline_demand_hourly_mw[0:T])/T *
+        m.addConstr((eheating_load_avg + ev_load_avg) + np.sum(baseline_demand_hourly_mw[0:T]-btmpv_avg_gen)/T *
                     cc_transform == 1)
         m.update()
 
