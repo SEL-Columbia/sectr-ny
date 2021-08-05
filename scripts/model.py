@@ -5,7 +5,7 @@ from scripts.utils import (load_timeseries, btmpv_capacity_projection, return_tx
 
 
 
-def create_model(args, model_config, lct, ghgt, elec_ratio):
+def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
     '''
     Function that create the Gurobi model that will be optimized.
 
@@ -59,11 +59,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     nuc_gen_mw = [int(args.nuclear_boolean) * float(args.nuc_avg_gen_mw[i]) for i in range(args.num_nodes)]
 
     # Determine BTM PV and waste emissions based on whether the projection year is 2019
-    if args.proj_year == 2019:
+    if proj_year == 2019:
         btmpv_cap_mw = args.btmpv_cap_existing_mw
         waste_emissions_kt = args.waste_emissions_kt
     else:
-        btmpv_state_cap_mw = btmpv_capacity_projection(args.proj_year)
+        btmpv_state_cap_mw = btmpv_capacity_projection(proj_year)
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]
         waste_emissions_kt = 0
 
@@ -451,12 +451,14 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
         if args.rgt_boolean:  # Apply RGT constaint
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
+        elif args.pathway_finding * proj_year == 2030: # 2030 we use RGT for pathway finding in CLCPA
+            carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
         else: # Apply LCT constraint
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_biofuel_sum_mwh)
 
         if args.lcp_constraint_ge: # LCP >= LCP Target
             m.addConstr(carbon_gen/numer_scale - demand_for_lcp/numer_scale <= 0)
-        else: # LCP >= LCP Target
+        else: # LCP == LCP Target
             m.addConstr(carbon_gen/numer_scale - demand_for_lcp/numer_scale == 0)
     m.update()
 

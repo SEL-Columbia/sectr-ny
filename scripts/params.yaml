@@ -7,6 +7,7 @@ scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
+CLCPA_rgt: True                 # True: 2030 uses RGT while other years use LCT, for SECTR-NY with CLCPA targets
 re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
 fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
@@ -27,7 +28,7 @@ same_nodal_costs: False          # True: Set nodal costs to be the same
 no_hydro_gen: False
 
 # input year
-proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
+# proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
 num_years: 6
@@ -142,14 +143,18 @@ nominal_storage_cost: 0.01
 nominal_trans_cost_mwh: 0.01
 
 ## Emissions assumptions -- all quantities measured in tons CO2e
-baseline_emissions_kt: 302770
-ng_e_factor_t_mwh: 0.3966601
-flex_space_heating_emissions_kt: [26305, 12388, 27026, 11749]
-flex_const_heating_emissions_kt: [9477, 4732, 13517, 5660]
-flex_trans_emissions_kt: 73703
-fixed_trans_emissions_kt: 21956
-fixed_ind_emissions_kt: 19365
-waste_emissions_kt: 2784
+## The numbers used here are 3-sector GHG emissions for lifespan natural gas leakage and 20 years global warming
+## potential. Set fixed transportation, industry, and waste incineration zeros for only considering 3-sector.
+## The numbers commented are the emissions assumptions adjusted to lower methane leakage (tried to align with NYSERDA
+## GHG inventory). And uses 100 years global warming potential instead of 20 years.
+baseline_emissions_kt: 263994 # 202648
+ng_e_factor_t_mwh: 0.39666 # 0.20648
+flex_space_heating_emissions_kt: [26305, 12388, 27026, 11749] #[14679, 7340, 15629, 7147]
+flex_const_heating_emissions_kt: [9477, 4732, 13517, 5660]    #[5215, 2738, 7743, 3364]
+flex_trans_emissions_kt: 73703 # 66746
+fixed_trans_emissions_kt: 0
+fixed_ind_emissions_kt: 0
+waste_emissions_kt: 0
 
 # Gurobi solver parameters
 feasibility_tol: 0.001

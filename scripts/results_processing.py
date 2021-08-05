@@ -349,15 +349,14 @@ def load_ts_based_results(args, processed_df):
         hydro = (np.sum(ts_csv.loc[:, 'fixed_hydro_gen_node_1':'fixed_hydro_gen_node_4'], axis=1) +
                  np.sum(ts_csv.loc[:, 'flex_hydro_node_1':'flex_hydro_node_2'], axis=1))
 
-        gas = np.round((np.sum(ts_csv.loc[:, 'gt_new_util_node_1':'gt_new_util_node_4'], axis=1) +
-                        np.sum(ts_csv.loc[:, 'gt_existing_util_node_1':'gt_existing_util_node_4'], axis=1)))
+        gas = np.array(np.round((np.sum(ts_csv.loc[:, 'gt_new_util_node_1':'gt_new_util_node_4'], axis=1) +
+                                 np.sum(ts_csv.loc[:, 'gt_existing_util_node_1':'gt_existing_util_node_4'], axis=1))))
 
         diff = demand - imports_and_btm - wind_and_solar - hydro
 
-        pos_days = np.argwhere(diff > 0)[:, 0]
-        neg_days = np.argwhere(diff < 0)[:, 0]
+        #pos_days = np.argwhere(diff > 0)[:, 0]
+        #neg_days = np.argwhere(diff < 0)[:, 0]
         gas_days = np.argwhere(gas == 0)[:, 0]
-
         excess_lowc_gen[ix] = -np.sum(diff[gas_days]) / T
 
         # curtail = np.sum(ts_csv.loc[:, 'energy_balance_slack_node_1':  'energy_balance_slack_node_4'], axis=1)
@@ -580,7 +579,7 @@ def load_ts_based_results(args, processed_df):
     return processed_df
 
 
-def raw_results_retrieval(args, m, model_config, scen_ix):
+def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
     T = args.num_hours
 
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
@@ -598,10 +597,10 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
         cf_mult = 1
 
     # BTMPV Capacity
-    if args.proj_year == 2019:
+    if proj_year == 2019:
         btmpv_cap = args.btmpv_cap_existing_mw
     else:
-        btmpv_cap = [btmpv_capacity_projection(args.proj_year) * k for k in args.btmpv_dist]
+        btmpv_cap = [btmpv_capacity_projection(proj_year) * k for k in args.btmpv_dist]
 
 
     cap_columns = ['eheating_rate_node_', 'ev_rate_node_', 'onshore_cap_node_', 'offshore_cap_node_',
