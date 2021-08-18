@@ -1,4 +1,4 @@
-date.time,heating.mw.region1,heating.mw.region2,heating.mw.region3,heating.mw.region4
+date.time,heating.mw.node1,heating.mw.node2,heating.mw.node3,heating.mw.node4
 1/1/07 0:00,2408.508422,1761.74254,3109.08753,1797.425486
 1/1/07 1:00,2423.643121,1784.281491,3108.656244,1786.547928
 1/1/07 2:00,2310.479678,1676.363342,2986.955842,1688.667198

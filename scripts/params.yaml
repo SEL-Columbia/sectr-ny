@@ -13,21 +13,21 @@ fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission 
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: True            # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
-new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
+new_gt_boolean: False             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
 same_nodal_elecfx_rates_boolean: True  # True: each node has same electrification rate; Only use false with config = 1
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
 lcp_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
-dss_synthetic_ts: False          # True: use 50% DSS synthetic TS, False: full heating electrification
+dss_synthetic_ts: True          # True: use 50% DSS synthetic TS, False: full heating electrification
 gt_based_on_current: False        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
 greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro to zero
 copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 no_hydro_gen: False
-peak_ng_flow_limit_nodal: False    # True: Set nodal ng flow limited to the current value
-peak_ng_flow_limit_regional: False  # True: Set state ng flow limited to the current value
+peak_ng_flow_limit_nodal: True    # True: Set nodal ng flow limited to the current value
+peak_ng_flow_limit_regional: True  # True: Set state ng flow limited to the current value
 ps_without_emissions: False       # True: ps technology achieve DSS load shaving, will not produce DSS extra emissions
 
 
@@ -99,7 +99,7 @@ new_gt_startup_cost_mw: 69
 new_gt_om_cost_mwh: 4.48
 new_gt_om_cost_mw_yr: 6.97e3
 new_gt_efficiency: 0.344
-new_gt_lifespan: 20
+new_gt_lifespan: 8
 # Existing GT assumptions (costs, existing capacity, efficiency, and addl. cap from simulations)
 existing_gt_startup_cost_mw: 79
 existing_gt_cap_mw: [3934.2, 8622.5, 10249.9, 4192.7]

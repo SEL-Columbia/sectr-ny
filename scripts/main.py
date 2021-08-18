@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     ### --- INPUT the model_config and the numbers in option 0, 1, 2, 3 --- ###
     # Define model config and set of heating, EV loads, and/or GHG reduction target appropriately
-    model_config = 1
+    model_config = 3
 
     # 0: LCT + Elec. specified, GHG returned
     if model_config == 0:
