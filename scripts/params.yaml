@@ -95,6 +95,7 @@ new_gt_startup_cost_mw: 69
 new_gt_om_cost_mwh: 4.48
 new_gt_om_cost_mw_yr: 6.97e3
 new_gt_efficiency: 0.344
+new_gt_lifespan: 8
 # Existing GT assumptions (costs, existing capacity, efficiency, and addl. cap from simulations)
 existing_gt_startup_cost_mw: 79
 existing_gt_cap_mw: [3934.2, 8622.5, 10249.9, 4192.7]

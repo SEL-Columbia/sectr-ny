@@ -144,6 +144,7 @@ def return_costs_for_model(args):
     # The interest rate is set in params.yaml
     ann_rate_20years = annualization_rate(args.i_rate, 20)
     ann_rate_10years = annualization_rate(args.i_rate, 10)
+    ann_rate_gt      = annualization_rate(args.i_rate, args.new_gt_lifespan)
 
     # Determine whether we are using the low or medium cost assumptions
     if args.re_cost_scenario == 'low':
@@ -173,7 +174,7 @@ def return_costs_for_model(args):
     ann_battery_capex_mw = args.num_years * ann_rate_10years * float(battery_capex_mw)
     ann_h2_capex_mwh = np.array([args.num_years * ann_rate_10years * float(x) for x in args.h2_capex_mwh])
     ann_h2_capex_mw = np.array([args.num_years * ann_rate_10years * float(x) for x in args.h2_capex_mw])
-    ann_gt_capex_mw = np.array([args.num_years * ann_rate_20years * float(x)
+    ann_gt_capex_mw = np.array([args.num_years * ann_rate_gt * float(x)
                                for x in args.gt_capex_mw])
 
     # Determining the FOM costs
