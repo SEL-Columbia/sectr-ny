@@ -522,7 +522,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.setAttr('RHS', cc_constr_list, 0)
 
         # Add constraint reflecting transformed denominator of linear-fractional objective (i.e. total electricity demand)
-        m.addConstr((eheating_load_avg + ev_load_avg) + np.sum(baseline_demand_hourly_mw[0:T]-btmpv_avg_gen)/T *
+        m.addConstr((eheating_load_avg + ev_load_avg) + (np.sum(baseline_demand_hourly_mw[0:T])/T-btmpv_avg_gen) *
                     cc_transform == 1)
         m.update()
 
