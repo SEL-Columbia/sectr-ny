@@ -173,14 +173,14 @@ def return_costs_for_model(args):
     ann_battery_capex_mw = args.num_years * ann_rate_10years * float(battery_capex_mw)
     ann_h2_capex_mwh = np.array([args.num_years * ann_rate_10years * float(x) for x in args.h2_capex_mwh])
     ann_h2_capex_mw = np.array([args.num_years * ann_rate_10years * float(x) for x in args.h2_capex_mw])
-    ann_gt_capex_mw = np.array([args.num_years * ann_rate_20years * args.reserve_req * float(x)
+    ann_gt_capex_mw = np.array([args.num_years * ann_rate_20years * float(x)
                                for x in args.gt_capex_mw])
 
     # Determining the FOM costs
     onshore_fom_cost = args.num_years * float(args.onshore_om_cost_mw_yr)
     offshore_fom_cost = args.num_years * float(args.offshore_om_cost_mw_yr)
     solar_fom_cost = args.num_years * float(args.solar_om_cost_mw_yr)
-    gt_fom_cost = args.num_years * float(args.new_gt_om_cost_mw_yr) * args.reserve_req
+    gt_fom_cost = args.num_years * float(args.new_gt_om_cost_mw_yr)
 
     # Determining the VOM costs
     gt_vom_cost = float(args.new_gt_om_cost_mwh)
@@ -196,6 +196,7 @@ def return_costs_for_model(args):
     cost_dict['battery_cost_per_mwh'] = ann_battery_capex_mwh
     cost_dict['h2_cost_per_mw'] = ann_h2_capex_mw # varies by node
     cost_dict['h2_cost_per_mwh'] = ann_h2_capex_mwh # varies by node
+    cost_dict['existing_gt_cost_per_mw'] = np.array([args.num_years * float(x) for x in args.cap_market_cost_mw_yr])
 
     # Per-MWh costs associated with generation are a combination of fuel costs and variable O&M costs (where applicable)
     cost_dict['new_gt_cost_mwh'] = gt_vom_cost + gt_fuel_cost / args.new_gt_efficiency # varies by node
@@ -224,7 +225,7 @@ def calculate_constant_costs(args):
 
     # Find the total amount of generation capacity eligible for capacity maintenance payments
     existing_cap_for_payments_mw = (int(args.nuclear_boolean) * np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw)
-                                    + np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
+                                    + np.array(args.biofuel_cap_mw) )
 
     # Find the cost of maintaining existing capacity over the # years in the study period by multiplying the amount
     # of eligible capacity by the nodal cost of that capacity

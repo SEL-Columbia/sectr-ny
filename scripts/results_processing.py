@@ -43,6 +43,9 @@ def cost_calculations(args, cap_results_df, processed_df):
                    * np.array(cost_dict['h2_cost_per_mw']) +
                    np.array([cap_results_df[f'h2_energy_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
                    * np.array(cost_dict['h2_cost_per_mwh'])), axis=1)
+    # existing gt cost
+    existing_gt_cost = np.sum(np.array([cap_results_df[f'gt_existing_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T *
+                              np.array(cost_dict['existing_gt_cost_per_mw']), axis=1)
 
     # Determine total cost of new transmission by adding the cost of new transmission capacity at each interface +
     # directionality
@@ -83,8 +86,9 @@ def cost_calculations(args, cap_results_df, processed_df):
     existing_tx_costs = np.sum([args.existing_trans_cost_mwh[i]*float(args.existing_trans_load_mwh_yr[i]) for i in
                                 range(len(args.existing_trans_load_mwh_yr))]) * args.num_years
     existing_cap_for_payments = (int(args.nuclear_boolean)*np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw) +
-                                  np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
-    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr)) * args.num_years
+                                  np.array(args.biofuel_cap_mw))
+    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr)) * args.num_years + \
+                        existing_gt_cost
 
     supp_cost = existing_tx_costs + existing_cap_cost
 
@@ -116,10 +120,8 @@ def cost_calculations(args, cap_results_df, processed_df):
 
 
     # Find gas LCOE
-    existing_gas_gen_cost = np.sum((np.array(args.existing_gt_cap_mw) * np.array(args.cap_market_cost_mw_yr)) *
-                                   args.num_years)
     processed_df['gas_gen_lcoe'] = (new_gt_cost + total_new_gt_fuel_cost + total_existing_gt_fuel_cost +
-                                    total_new_gt_ramp_cost + total_existing_gt_ramp_cost + existing_gas_gen_cost) / \
+                                    total_new_gt_ramp_cost + total_existing_gt_ramp_cost + existing_gt_cost) / \
                                    ((processed_df['gt_new_util_regional_avg_mw'] +
                                      processed_df['gt_existing_util_regional_avg_mw']) * T)
 
@@ -604,8 +606,8 @@ def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
 
 
     cap_columns = ['eheating_rate_node_', 'ev_rate_node_', 'onshore_cap_node_', 'offshore_cap_node_',
-                   'solar_cap_node_', 'gt_new_cap_node_', 'batt_energy_cap_node_', 'batt_power_cap_node_',
-                   'h2_energy_cap_node_', 'h2_power_cap_node_']
+                   'solar_cap_node_', 'gt_new_cap_node_', 'gt_existing_cap_node_', 'batt_energy_cap_node_',
+                   'batt_power_cap_node_', 'h2_energy_cap_node_', 'h2_power_cap_node_']
 
     # Populate the capacity results
     cap_results_df = pd.DataFrame()
@@ -616,7 +618,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
         if col == 'gt_new_cap_node_':
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
-                cap_results_df[column_string] = [m.getVarByName(column_string).X * args.reserve_req/cf_mult]
+                cap_results_df[column_string] = [m.getVarByName(column_string).X/cf_mult]
         else:
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
@@ -821,6 +823,7 @@ def full_results_processing(args):
     offshore_cap = np.array([cap_results_df[f'offshore_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     solar_cap = np.array([cap_results_df[f'solar_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     gt_new_cap = np.array([cap_results_df[f'gt_new_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
+    gt_existing_cap = np.array([cap_results_df[f'gt_existing_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     battery_energy_cap = np.array([cap_results_df[f'batt_energy_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     battery_power_cap = np.array([cap_results_df[f'batt_power_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     h2_energy_cap = np.array([cap_results_df[f'h2_energy_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
@@ -876,7 +879,7 @@ def full_results_processing(args):
     processed_df['solar_cap_gw'] = processed_df['solar_cap_mw']/1000
     processed_df['total_windsolar_cap_gw'] = processed_df['total_wind_gw'] + processed_df['solar_cap_gw']
     processed_df['new_gt_cap_mw'] = np.sum(gt_new_cap, axis=1)
-    processed_df['existing_gt_cap_mw'] = np.sum(args.existing_gt_cap_mw)
+    processed_df['existing_gt_cap_mw'] = np.sum(gt_existing_cap, axis=1)
     processed_df['total_gas_cap_gw'] = (processed_df['new_gt_cap_mw'] + processed_df['existing_gt_cap_mw'])/1000
     processed_df['battery_energy_cap_mwh'] = np.sum(battery_energy_cap, axis=1)
     processed_df['battery_power_cap_mw'] = np.sum(battery_power_cap, axis=1)
@@ -910,7 +913,7 @@ def full_results_processing(args):
 
 
     nodal_capacity_strings = ['onshore_cap_node_', 'offshore_cap_node_', 'solar_cap_node_', 'gt_new_cap_node_',
-                              'batt_energy_cap_node_', 'h2_energy_cap_node_']
+                              'gt_existing_cap_node_', 'batt_energy_cap_node_', 'h2_energy_cap_node_']
     # Add new wind, solar, and gt_capacity by node
     for ix, cap_str in enumerate(nodal_capacity_strings):
         for jx in range(args.num_nodes):

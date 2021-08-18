@@ -30,9 +30,9 @@ if __name__ == '__main__':
 
     # 1: LCT + GHG specified, Elec. returned
     elif model_config == 1:
-        lowc_targets = [0.7,1,1]
-        dghg_targets = [0.4,0.7,0.85]
-        proj_years = [2030, 2040, 2050]
+        lowc_targets = [0.7]
+        dghg_targets = [0.4]
+        proj_years = [2030]
         elec_ratios = [np.nan]*len(lowc_targets) # indeterminate
 
     # 2: Elec. + GHG specified, LCT returned.

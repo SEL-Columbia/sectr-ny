@@ -67,9 +67,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]
         waste_emissions_kt = 0
 
-    # Define existing usable cap based on reserve requirement
-    gt_existing_cap = [x / args.reserve_req for x in args.existing_gt_cap_mw]
-
     m.update()
     #####----------------------------------------------------------------------------------------------------------#####
     #####----------------------------------------------------------------------------------------------------------#####
@@ -116,6 +113,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
         offshore_cap    = m.addVar(obj=cost_dict['offshore_cost_per_mw'], name=f'offshore_cap_node_{i+1}')
         solar_cap       = m.addVar(obj=cost_dict['solar_cost_per_mw'][i], name = f'solar_cap_node_{i+1}')
         gt_new_cap      = m.addVar(obj=cost_dict['gt_cost_per_mw'][i], name = f'gt_new_cap_node_{i+1}')
+        gt_existing_cap = m.addVar(obj=cost_dict['existing_gt_cost_per_mw'][i], name = f'gt_existing_cap_node_{i+1}')
         battery_cap_mwh = m.addVar(obj=cost_dict['battery_cost_per_mwh'], name = f'batt_energy_cap_node_{i+1}')
         battery_cap_mw  = m.addVar(obj=cost_dict['battery_cost_per_mw'], name=f'batt_power_cap_node_{i+1}')
 
@@ -127,7 +125,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
         # Add capacity constraints
         # Set the amount of new GT cap if no new capacity is allowed
         if not args.new_gt_boolean:
-            m.addConstr(gt_new_cap == args.current_scenario_addl_gt_cap[i])
+            m.addConstr(gt_new_cap == int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
 
         # Fix renewable (wind, solar, and battery) capacities if required
         if args.fix_existing_cap_boolean:
@@ -136,6 +134,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
             m.addConstr(solar_cap == args.solar_cap_existing_mw[i])
             m.addConstr(battery_cap_mwh == args.existing_battery_cap_mwh[i])
             m.addConstr(battery_cap_mw  == args.existing_battery_cap_mw[i])
+            m.addConstr(gt_existing_cap == args.existing_gt_cap_mw[i])
 
         else:
             m.addConstr(onshore_cap >= float(args.onshore_cap_existing_mw[i]))
@@ -152,6 +151,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
             # Constrain battery power and energy to ratio limits in args
             m.addConstr(battery_cap_mw >= args.battery_p2e_ratio_range[0] * battery_cap_mwh)
             m.addConstr(battery_cap_mw <= args.battery_p2e_ratio_range[1] * battery_cap_mwh)
+
+            m.addConstr(gt_existing_cap <= args.existing_gt_cap_mw[i])
 
         m.addConstr(gt_new_cap >= int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
 
@@ -241,7 +242,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
             m.addConstr(flex_hydro_mw[j] <= args.flex_hydro_cap_mw[i])
             m.addConstr(biofuel_gen_mw[j] <= args.biofuel_cap_mw[i])
             m.addConstr(elec_import[j] <= args.import_limit_mw[i])
-            m.addConstr(gt_existing_util[j] <= gt_existing_cap[i])
+            # m.addConstr(gt_existing_util[j] <= gt_existing_cap[i])
 
             # Sum all the transmission export time series for node i at time step j
             if len(tx_export_keys) > 0:
@@ -257,7 +258,9 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
 
 
             # Contrain Gas turbine capacity
+            m.addConstr(gt_new_util[j] + gt_existing_util[j] <= (gt_new_cap+gt_existing_cap)/args.reserve_req)
             m.addConstr(gt_new_util[j] <= gt_new_cap)
+            m.addConstr(gt_existing_util[j] <= gt_existing_cap)
 
             # Load constraint: No battery/H2 operation in time t=0
             # First transmission loss constraint
@@ -448,10 +451,9 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
         # Scale to avoid numerical issues on the quadratic constraint
         numer_scale = 1e6
         demand_for_lcp = (full_demand_sum_mwh - full_hq_imports_sum_mwh) * frac_netload
-
         if args.rgt_boolean:  # Apply RGT constaint
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
-        elif args.pathway_finding * proj_year == 2030: # 2030 we use RGT for pathway finding in CLCPA
+        elif int(args.CLCPA_rgt) * proj_year == 2030: # 2030 we use RGT for pathway finding in CLCPA
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
         else: # Apply LCT constraint
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_biofuel_sum_mwh)

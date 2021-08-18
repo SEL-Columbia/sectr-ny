@@ -11,7 +11,7 @@ CLCPA_rgt: True                 # True: 2030 uses RGT while other years use LCT,
 re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
 fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
-nuclear_boolean: False            # True: allow nuclear; False: no nuclear
+nuclear_boolean: True            # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
 new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
@@ -147,11 +147,11 @@ nominal_trans_cost_mwh: 0.01
 ## potential. Set fixed transportation, industry, and waste incineration zeros for only considering 3-sector.
 ## The numbers commented are the emissions assumptions adjusted to lower methane leakage (tried to align with NYSERDA
 ## GHG inventory). And uses 100 years global warming potential instead of 20 years.
-baseline_emissions_kt: 263994 # 202648
-ng_e_factor_t_mwh: 0.39666 # 0.20648
-flex_space_heating_emissions_kt: [26305, 12388, 27026, 11749] #[14679, 7340, 15629, 7147]
-flex_const_heating_emissions_kt: [9477, 4732, 13517, 5660]    #[5215, 2738, 7743, 3364]
-flex_trans_emissions_kt: 73703 # 66746
+baseline_emissions_kt: 250800 # 189442
+ng_e_factor_t_mwh: 0.37866 # 0.18845
+flex_space_heating_emissions_kt: [25070,11788,25734,11173] # [13441, 6740, 14335, 6569]
+flex_const_heating_emissions_kt: [9035,4505,12874,5385] # [4772, 2511, 7099, 3089]
+flex_trans_emissions_kt: 69162 # 62204
 fixed_trans_emissions_kt: 0
 fixed_ind_emissions_kt: 0
 waste_emissions_kt: 0
