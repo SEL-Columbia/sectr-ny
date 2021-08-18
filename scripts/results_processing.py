@@ -178,7 +178,7 @@ def load_ts_based_results(args, processed_df):
     baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     # Load all the timeseries files present in the corresponding folder
     ts_results_dir = f'{args.results_dir}/{args.dir_time}/ts_results'
@@ -587,7 +587,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 
@@ -628,12 +628,16 @@ def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
     for ix in range(args.num_nodes):
         cap_results_df[f'btm_cap_node_{ix+1}'] = btmpv_cap[ix]
 
+    # Add ng flow
+    for ix in range(args.num_nodes):
+        cap_results_df[f'ng_flow_mw_max_nodal_{ix+1}'] = [m.getVarByName(f'ng_flow_maximum[{ix}]').X / cf_mult]
+    cap_results_df['ng_flow_mw_max_regional'] = [m.getVarByName(f'ng_flow_maximum[{args.num_nodes}]').X/cf_mult]
+
     ts_columns = ['ev_charging_node_', 'energy_balance_slack_node_', 'flex_hydro_node_', 'batt_charge_node_',
                   'batt_discharge_node_',
                   'batt_level_node_', 'h2_charge_node_', 'h2_discharge_node_', 'h2_level_node_',
                   'gt_new_util_node_', 'gt_new_diff_node_', 'gt_new_abs_node_', 'gt_existing_util_node_',
-                  'gt_existing_diff_node_', 'gt_existing_abs_node_', 'biofuel_util_node_', 'elec_import_node_',
-                  ]
+                  'gt_existing_diff_node_', 'gt_existing_abs_node_', 'biofuel_util_node_', 'elec_import_node_']
 
     ## Populate timeseries Dataframe
     ts_results_df = pd.DataFrame()
@@ -756,6 +760,15 @@ def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
 
     veh_elecfx = np.sum(ev_elecfx_nodal_ratios)
 
+    # find the ng maximum flow
+    for ix in range(args.num_nodes):
+        ts_results_df[f'ng_flow_mw_nodal_{ix+1}'] = \
+            full_ng_heating_load_hourly_mw[:, ix] * (1 - np.array(cap_results_df[f'eheating_rate_node_{ix+1}'])) + \
+            full_ng_dss50_hourly_mw[:, ix] * np.array(cap_results_df[f'eheating_rate_node_{ix+1}']) * \
+            int(args.dss_synthetic_ts) * (1 - int(args.ps_without_emissions)) + \
+            np.array(ts_results_df[f'gt_new_util_node_{ix+1}']) / args.new_gt_efficiency + \
+            np.array(ts_results_df[f'gt_existing_util_node_{ix+1}']) / args.existing_gt_efficiency
+
 
     # LCT GHGT elec results
     dghg_target = m.getVarByName('ghg_target').X / cf_mult
@@ -799,7 +812,7 @@ def full_results_processing(args):
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 
@@ -917,10 +930,16 @@ def full_results_processing(args):
     # Add new wind, solar, and gt_capacity by node
     for ix, cap_str in enumerate(nodal_capacity_strings):
         for jx in range(args.num_nodes):
-            if ix < 4:
+            if ix < 5:
                 processed_df[f'{cap_str}{jx+1}_mw'] = cap_results_df[f'{cap_str}{jx+1}']
             else:
                 processed_df[f'{cap_str}{jx+1}_mwh'] = cap_results_df[f'{cap_str}{jx + 1}']
+
+    # ng flow results from
+    for ix in range(args.num_nodes):
+        processed_df[f'ng_flow_mw_max_node_{ix+1}'] = cap_results_df[f'ng_flow_mw_max_nodal_{ix+1}']
+    processed_df[f'ng_flow_mw_max_regional'] = cap_results_df['ng_flow_mw_max_regional']
+
 
     # Add upstate and downstate quantities
     processed_df['low-c_cap_upstate_mw'] = \

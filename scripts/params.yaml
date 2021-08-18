@@ -26,6 +26,10 @@ greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro
 copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 no_hydro_gen: False
+peak_ng_flow_limit_nodal: False    # True: Set nodal ng flow limited to the current value
+peak_ng_flow_limit_regional: False  # True: Set state ng flow limited to the current value
+ps_without_emissions: False       # True: ps technology achieve DSS load shaving, will not produce DSS extra emissions
+
 
 # input year
 # proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
@@ -95,7 +99,7 @@ new_gt_startup_cost_mw: 69
 new_gt_om_cost_mwh: 4.48
 new_gt_om_cost_mw_yr: 6.97e3
 new_gt_efficiency: 0.344
-new_gt_lifespan: 8
+new_gt_lifespan: 20
 # Existing GT assumptions (costs, existing capacity, efficiency, and addl. cap from simulations)
 existing_gt_startup_cost_mw: 79
 existing_gt_cap_mw: [3934.2, 8622.5, 10249.9, 4192.7]
@@ -129,6 +133,11 @@ cap_market_cost_mw_yr: [27640, 53440, 101303, 104600]  # $/MW-yr
 existing_trans_load_mwh_yr: [69.683e6, 75.52e6] # MWh sales in {nodes 1 & 2}, {nodes 3 and 4}
 existing_trans_cost_mwh: [16.9, 27.3] # $/MWh transmision average price component for {nodes 1 & 2}, {nodes 3 and 4}
 
+## NG pipe flow limits
+ng_current_max_flow_mw_nodal: [40961.60, 18239.71, 49251.14, 19452.69]
+ng_current_max_flow_mw_regional: 124061.63
+ng_flow_nominal_cost: 10
+
 ## EV assumptions
 ev_full_cap_mw: 6716
 ev_charging_p2e_ratio: 0.166666667
@@ -158,8 +167,8 @@ fixed_ind_emissions_kt: 0
 waste_emissions_kt: 0
 
 # Gurobi solver parameters
-feasibility_tol: 0.001
-optimality_tol: 0.001
+feasibility_tol: 0.01
+optimality_tol: 0.01
 method: 2
 bar_conv_tol: 0
 bar_order: 0

@@ -33,7 +33,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     # Load in formatted costs for variable assignment
     cost_dict = return_costs_for_model(args)
@@ -383,6 +383,31 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
         model_data_eheating_ratio[i] = m.getVarByName(f'eheating_rate_node_{i+1}')
         model_data_ev_ratio[i] = m.getVarByName(f'ev_rate_node_{i+1}')
 
+    # NG flow limits
+    # the building side ng flow
+    bld_ng_load_hourly_mw = {}
+    # 4 nodes + regional total ng flow maximum
+    ng_flow_max_mw = m.addVars((args.num_nodes + 1), obj=args.ng_flow_nominal_cost, name='ng_flow_maximum')
+
+    for i in range(args.num_nodes):
+        for j in trange:
+            # max_() would increase the computation time, so adding new variable for getting the maximum NG flow
+            bld_ng_load_hourly_mw[i, j] = full_ng_heating_load_hourly_mw[j, i] * (1 - model_data_eheating_ratio[i]) + \
+                                          full_ng_dss50_hourly_mw[j, i] * model_data_eheating_ratio[i] * \
+                                          int(args.dss_synthetic_ts) * (1 - int(args.ps_without_emissions))
+            m.addConstr(ng_flow_max_mw[i] >= model_data_gt_new_util[i, j] / args.new_gt_efficiency +
+                        model_data_gt_existing_util[i, j] / args.existing_gt_efficiency + bld_ng_load_hourly_mw[i, j])
+    for j in trange:
+        m.addConstr(ng_flow_max_mw[args.num_nodes] >= quicksum(model_data_gt_new_util[i, j] / args.new_gt_efficiency +
+                                                               model_data_gt_existing_util[i, j] / args.existing_gt_efficiency + bld_ng_load_hourly_mw[i, j]
+                                                               for i in range(args.num_nodes)))
+    # nodal ng flow limit
+    if args.peak_ng_flow_limit_nodal:
+        m.addConstrs(ng_flow_max_mw[i] <= args.ng_current_max_flow_mw_nodal[i] for i in range(args.num_nodes))
+    # regional ng flow limit
+    if args.peak_ng_flow_limit_regional:
+        m.addConstr(ng_flow_max_mw[args.num_nodes] <= args.ng_current_max_flow_mw_regional)
+
     # Limit offshore wind to the total allowable capacity
     m.addConstr(quicksum(model_data_offshore_cap[i] for i in range(args.num_nodes)) <=
                 args.offshore_cap_total_limit_mw)
@@ -475,7 +500,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
                                  * (1 - model_data_eheating_ratio[i]) for i in range(args.num_nodes))
 
     # Accounting for heating emissions from DSS
-    heating_emissions_dss = quicksum(int(args.dss_synthetic_ts) *
+    heating_emissions_dss = quicksum(int(args.dss_synthetic_ts) * (1 - int(args.ps_without_emissions)) *
                          args.flex_space_heating_emissions_kt[i] * model_data_eheating_ratio[i] *
                          full_dss50_ff_heating_load_nodal_avg[i] / full_ff_heating_load_nodal_avg[i]
                          for i in range(args.num_nodes))
@@ -526,7 +551,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
         m.setAttr('RHS', cc_constr_list, 0)
 
         # Add constraint reflecting transformed denominator of linear-fractional objective (i.e. total electricity demand)
-        m.addConstr((eheating_load_avg + ev_load_avg) + np.sum(baseline_demand_hourly_mw[0:T]-btmpv_avg_gen)/T *
+        m.addConstr((eheating_load_avg + ev_load_avg) + (np.sum(baseline_demand_hourly_mw[0:T])/T-btmpv_avg_gen) *
                     cc_transform == 1)
         m.update()
 

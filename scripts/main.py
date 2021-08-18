@@ -44,8 +44,8 @@ if __name__ == '__main__':
 
     # 3: Minimize LCOE for GHG specified, LCT/RG and Elec. returned
     elif model_config == 3:
-        dghg_targets = [0.4,0.7,0.85]
-        proj_years = [2030, 2040, 2050]
+        dghg_targets = [0.4]
+        proj_years = [2030]
         lowc_targets = [np.nan]*len(dghg_targets) # indeterminate
         elec_ratios = [np.nan]*len(dghg_targets) # indeterminate
 

@@ -99,6 +99,10 @@ def load_timeseries(args):
                                                        index_col=0))[0:T]
     full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_dss50_hourly_mw.csv',
                                                    index_col=0))[0:T]
+    full_ng_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ng_heating_hourly_mw.csv',
+                                                          index_col=0))[0:T]
+    full_ng_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ng_heating_dss50_hourly_mw.csv',
+                                                   index_col=0))[0:T]
 
     ## Set average hydropower generation
     hydro_avg_gen_mw = np.mean(fixed_hydro_hourly_mw, axis=0) + np.mean(flex_hydro_daily_mwh, axis=0)/24
@@ -125,7 +129,7 @@ def load_timeseries(args):
     return baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
            full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
            offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-           flex_hydro_daily_mwh
+           flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw
 
 def return_costs_for_model(args):
     '''
