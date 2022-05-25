@@ -1,6 +1,6 @@
 # Model run parameters
-data_dir: '../data_uploads'
-results_dir: '../model_results'
+data_dir: './data_uploads'
+results_dir: './model_results'
 
 # output scenario name
 scenario_name: 'scenario_name'
@@ -13,7 +13,7 @@ fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission 
 rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: True            # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
-new_gt_boolean: False             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
+new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
 same_eheating_ev_rate_boolean: True   # True: same electrification rates for heating and vehicles; False, diff. rates
 same_nodal_elecfx_rates_boolean: True  # True: each node has same electrification rate; Only use false with config = 1
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
@@ -26,8 +26,8 @@ greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro
 copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 no_hydro_gen: False
-peak_ng_flow_limit_nodal: True    # True: Set nodal ng flow limited to the current value
-peak_ng_flow_limit_regional: True  # True: Set state ng flow limited to the current value
+peak_ng_flow_limit_nodal: False    # True: Set nodal ng flow limited to the current value
+peak_ng_flow_limit_regional: False # True: Set state ng flow limited to the current value
 ps_without_emissions: False       # True: ps technology achieve DSS load shaving, will not produce DSS extra emissions
 
 
@@ -99,7 +99,7 @@ new_gt_startup_cost_mw: 69
 new_gt_om_cost_mwh: 4.48
 new_gt_om_cost_mw_yr: 6.97e3
 new_gt_efficiency: 0.344
-new_gt_lifespan: 8
+new_gt_lifespan: 20
 # Existing GT assumptions (costs, existing capacity, efficiency, and addl. cap from simulations)
 existing_gt_startup_cost_mw: 79
 existing_gt_cap_mw: [3934.2, 8622.5, 10249.9, 4192.7]
@@ -132,6 +132,11 @@ hqch_capacity_factor: 0.9
 cap_market_cost_mw_yr: [27640, 53440, 101303, 104600]  # $/MW-yr
 existing_trans_load_mwh_yr: [69.683e6, 75.52e6] # MWh sales in {nodes 1 & 2}, {nodes 3 and 4}
 existing_trans_cost_mwh: [16.9, 27.3] # $/MWh transmision average price component for {nodes 1 & 2}, {nodes 3 and 4}
+
+## Distribution incremental cost
+new_dist_cost_mw_yr: [34716, 61247, 199400, 109860]
+current_demand_peak: [10220, 4715, 13484, 5806]
+dist_peak_cost_mtp: 1  # set as 1 time of the NYS study numbers
 
 ## NG pipe flow limits
 ng_current_max_flow_mw_nodal: [40961.60, 18239.71, 49251.14, 19452.69]

@@ -4,7 +4,6 @@ from scripts.utils import (load_timeseries, btmpv_capacity_projection, return_tx
                     return_costs_for_model, calculate_constant_costs)
 
 
-
 def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
     '''
     Function that create the Gurobi model that will be optimized.
@@ -45,7 +44,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
 
     # Set up GHG variable
     ghg_target = m.addVar(name = 'ghg_target', lb=-GRB.INFINITY)
-
     if model_config == 1 or model_config == 2 or model_config == 3:
         m.addConstr(ghg_target - ghgt == 0)
 
@@ -107,6 +105,10 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
                 m.addConstr(new_import_cap == 0)
 
         m.update()
+
+        ## nodal distribution upgrade cost with the peakload increment
+        peakload_diff = m.addVar(obj=cost_dict['dist_upg_mw'][i], name=f'dist_upg_peak_load_add_node_{i+1}')
+        print('checkpts dist cost', i, cost_dict['dist_upg_mw'][i])
 
         ## Initialize capacity variables
         onshore_cap     = m.addVar(obj=cost_dict['onshore_cost_per_mw'], name=f'onshore_cap_node_{i+1}')
@@ -272,6 +274,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year):
                         baseline_demand_hourly_mw[j, i] + full_heating_load_hourly_mw[j, i] * eheating_rate -
                         fixed_hydro_hourly_mw[j, i] - nuc_gen_mw[i] - btmpv_cap_mw[i] * btmpv_pot_hourly[j, i],
                         name= f'energy_balance_slack_node_{i+1}[{j}]')
+
+            # nodal demand peak
+            nodal_demand_hrly = baseline_demand_hourly_mw[j, i] + full_heating_load_hourly_mw[j, i] * eheating_rate + \
+                              ev_charging[j] - btmpv_cap_mw[i] * btmpv_pot_hourly[j, i]
+            m.addConstr(peakload_diff + args.current_demand_peak[i] >= nodal_demand_hrly)
 
             # Battery operation constraints
             m.addConstr(batt_charge[j] - battery_cap_mw <= 0)

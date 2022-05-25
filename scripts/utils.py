@@ -16,7 +16,7 @@ def get_args():
         description = 'nys-cem')
     parser.add_argument('--params_filename',
                         type=str,
-                        default='params.yaml',
+                        default='scripts/params.yaml',
                         help = 'Loads model parameters')
     args = parser.parse_args()
     config = yaml.load(open(args.params_filename), Loader=yaml.FullLoader)
@@ -206,6 +206,10 @@ def return_costs_for_model(args):
     # Per-MWh costs associated with generation are a combination of fuel costs and variable O&M costs (where applicable)
     cost_dict['new_gt_cost_mwh'] = gt_vom_cost + gt_fuel_cost / args.new_gt_efficiency # varies by node
     cost_dict['existing_gt_cost_mwh'] = gt_fuel_cost / args.existing_gt_efficiency # varies by node
+
+    # Per-MW-yr costs for distribution upgrade
+    cost_dict['dist_upg_mw'] = np.array([args.num_years * args.dist_peak_cost_mtp * float(x)
+                                         for x in args.new_dist_cost_mw_yr])
 
     return cost_dict
 

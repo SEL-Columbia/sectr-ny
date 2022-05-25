@@ -102,6 +102,10 @@ def cost_calculations(args, cap_results_df, processed_df):
                        total_existing_gt_fuel_cost + total_new_gt_ramp_cost + total_existing_gt_ramp_cost +
                        total_imports_cost)
 
+    ## cost from distribution
+    peak_load_dist = np.array([cap_results_df[f'dist_upg_peak_load_add_node_{i+1}'] for i in range(args.num_nodes)]).T
+    dist_upg_cost = np.sum(peak_load_dist * cost_dict['dist_upg_mw'], axis=1)
+
     ## Find wind, solar LCOEs based on generation and curtailment
     # Calculate the LCOES of wind and solar
 
@@ -130,7 +134,7 @@ def cost_calculations(args, cap_results_df, processed_df):
     processed_df['battery_cost_per_mwh_discharge'] = new_batt_cost/(processed_df['battery_discharge_regional_avg_mw'] * T)
 
 
-    return new_cap_cost, generation_cost, supp_cost
+    return new_cap_cost, generation_cost, supp_cost, dist_upg_cost
 
 def allocate_curtailment(args, ts_results_df):
 
@@ -607,7 +611,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
 
     cap_columns = ['eheating_rate_node_', 'ev_rate_node_', 'onshore_cap_node_', 'offshore_cap_node_',
                    'solar_cap_node_', 'gt_new_cap_node_', 'gt_existing_cap_node_', 'batt_energy_cap_node_',
-                   'batt_power_cap_node_', 'h2_energy_cap_node_', 'h2_power_cap_node_']
+                   'batt_power_cap_node_', 'h2_energy_cap_node_', 'h2_power_cap_node_', 'dist_upg_peak_load_add_node_']
 
     # Populate the capacity results
     cap_results_df = pd.DataFrame()
@@ -940,6 +944,9 @@ def full_results_processing(args):
         processed_df[f'ng_flow_mw_max_node_{ix+1}'] = cap_results_df[f'ng_flow_mw_max_nodal_{ix+1}']
     processed_df[f'ng_flow_mw_max_regional'] = cap_results_df['ng_flow_mw_max_regional']
 
+    # dist upg peak load increment from
+    for ix in range(args.num_nodes):
+        processed_df[f'dist_peak_load_node_{ix+1}'] = cap_results_df[f'dist_upg_peak_load_add_node_{ix+1}']
 
     # Add upstate and downstate quantities
     processed_df['low-c_cap_upstate_mw'] = \
@@ -965,7 +972,7 @@ def full_results_processing(args):
     processed_df = load_ts_based_results(args, processed_df)
 
     # Load total costs
-    new_cap_cost, generation_cost, supp_cost = cost_calculations(args, cap_results_df, processed_df)
+    new_cap_cost, generation_cost, supp_cost, dist_upg_cost = cost_calculations(args, cap_results_df, processed_df)
 
     # Find total MWh for LCOE calculations
     btm_avg_mwh = np.sum(btm_cap * np.mean(btmpv_pot_hourly, axis=0), axis=1)
@@ -975,9 +982,9 @@ def full_results_processing(args):
     processed_df['new_cap_lcoe']    = new_cap_cost/total_mwh_for_lcoe
     processed_df['generation_lcoe'] = generation_cost/total_mwh_for_lcoe
     processed_df['supp_cost_lcoe']  = supp_cost/total_mwh_for_lcoe
-    processed_df['total_lcoe'] = (new_cap_cost + generation_cost + supp_cost)/total_mwh_for_lcoe
-    processed_df['total_annualized_cost'] = (new_cap_cost + generation_cost + supp_cost)/args.num_years
-
+    processed_df['dist_upg_cost_lcoe']  = dist_upg_cost/total_mwh_for_lcoe
+    processed_df['total_lcoe'] = (new_cap_cost + generation_cost + supp_cost + dist_upg_cost)/total_mwh_for_lcoe
+    processed_df['total_annualized_cost'] = (new_cap_cost + generation_cost + supp_cost + dist_upg_cost)/args.num_years
 
     ## calculate the renewable electricity ratio / low-carbon electricity ratio
     # average demand for renewable depend on

@@ -3,14 +3,11 @@ from scripts.utils import *
 import numpy as np
 import datetime
 from scripts.results_processing import raw_results_retrieval, full_results_processing
-from scripts.utils import load_timeseries
 
 
 
 if __name__ == '__main__':
     args = get_args()
-
-    load_timeseries(args)
 
     dir_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     args.__dict__['dir_time'] = dir_time
@@ -44,8 +41,8 @@ if __name__ == '__main__':
 
     # 3: Minimize LCOE for GHG specified, LCT/RG and Elec. returned
     elif model_config == 3:
-        dghg_targets = [0.4]
-        proj_years = [2030]
+        dghg_targets = [0.4, 0.7]
+        proj_years = [2030, 2040]
         lowc_targets = [np.nan]*len(dghg_targets) # indeterminate
         elec_ratios = [np.nan]*len(dghg_targets) # indeterminate
 
