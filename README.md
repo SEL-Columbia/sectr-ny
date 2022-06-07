@@ -34,12 +34,16 @@ The `model_results/` folder is too large to include in this repository. It is in
 
 The `data_uploads/` folder holds the timeseries and assumptions spreadsheets required to run SECTR-NY. Each spreadhseet is named in a way that distinguishes its content. It is recommended that these files and filenames are left as is. 
 
-The `scripts/` folder contains the Python files that instantiate and solve the SECTR-NY model. Descriptions of the files within the folder are included below. 
+The `scripts/` folder contains the Python files that instantiate and solve the SECTR-NY model. Descriptions of the files within the folder are included below. The code within each file is commented for interpretability. 
 
-`main.py`: The main script for SECTR-NY. This is the file to run to setup and solve a SECTR-NY simulation. In the script, a user specifies the model configuration and some combination of  1) emissions reductions target, 2) the low-carbon electricity percent, or 3) the heating and vehicle electrification percent for the model scenario. 
 
-`model.py`: This script defines the SECTR-NY model, a linear program representing the NYS electricity system. 
+`scripts/main.py`: The main script for SECTR-NY. This is the file to run to setup and solve a SECTR-NY simulation. In the script, a user specifies the model configuration and some combination of  1) emissions reductions target, 2) the low-carbon electricity percent, or 3) the heating and vehicle electrification percent for the model scenario. 
 
-`params.py`: This file defines parameters for the SECTR-NY including but not limited to: location-specific technology costs, existing infrastructure limits, and sectoral emissions quantities. 
+`scripts/model.py`: This script defines the SECTR-NY model, a linear program representing the NYS electricity system. 
 
+`scripts/params.py`: This file defines parameters for the SECTR-NY including but not limited to: location-specific technology costs, existing infrastructure limits, and sectoral emissions quantities. 
+
+`scripts/results_processing.py`: This script turns SECTR-NY model outputs into `.xlsx` files in `model_results/` for interpretation and evaluation.
+
+`utils.py`: This script contains various helper functions for the SECTR-NY model. 
 
