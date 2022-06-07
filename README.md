@@ -30,7 +30,7 @@ sectr-ny
 ```
 ## Root Level Repository Description
 
-The `model_results/` folder is too large to include in this repository. It is instead made available [here](). This folder contains all results presented in the SECTR-NY [publication](https://arxiv.org/abs/2203.11263).
+The `model_results/` folder is too large to include in this repository. It is instead made available [here](https://console.cloud.google.com/storage/browser/terry_phd_export/projects/new_york_state/sectr-ny/model_results). This folder contains all results presented in the SECTR-NY [publication](https://arxiv.org/abs/2203.11263).
 
 The `data_uploads/` folder holds the timeseries and assumptions spreadsheets required to run SECTR-NY. Each spreadhseet is named in a way that distinguishes its content. It is recommended that these files and filenames are left as is. 
 
