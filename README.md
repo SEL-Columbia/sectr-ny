@@ -28,7 +28,7 @@ sectr-ny
 │   ├── results_processing.py
 │   ├── utils.py
 ```
-## Root Level Repository Description
+## Repository Description
 
 The `model_results/` folder is too large to include in this repository. It is instead made available [here](https://console.cloud.google.com/storage/browser/terry_phd_export/projects/new_york_state/sectr-ny/model_results). This folder contains all results presented in the SECTR-NY [publication](https://arxiv.org/abs/2203.11263).
 
