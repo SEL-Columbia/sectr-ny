@@ -1,15 +1,16 @@
 # Model run parameters
-data_dir: '../data_uploads'
-results_dir: '../model_results'
+data_dir: './data_uploads'
+results_dir: './model_results'
 
 # output scenario name
 scenario_name: 'scenario_name'
 
 ##### -------------------------           input control           ------------------------- #####
 # boolean parameters
+CLCPA_rgt: True                 # True: 2030 uses RGT while other years use LCT, for SECTR-NY with CLCPA targets
 re_cost_scenario: 'medium'          # or 'low' for low renewable generator and battery storage costs
 fix_existing_cap_boolean: False  # True: fix wind, solar, battery, transmission capacity; HQ-CH imports = 0
-rgt_boolean: False               # True: the low_carbon input in "main.py" would be Renewable
+rgt_boolean: False              # True: the low_carbon input in "main.py" would be Renewable
 nuclear_boolean: False            # True: allow nuclear; False: no nuclear
 h2_boolean: False                # True: allow H2 storage; False: H2 storage
 new_gt_boolean: True             # True: allow GT capacity above "gt_current_mix_cap_mw" listed below
@@ -17,7 +18,7 @@ same_eheating_ev_rate_boolean: True   # True: same electrification rates for hea
 same_nodal_elecfx_rates_boolean: True  # True: each node has same electrification rate; Only use false with config = 1
 btmpv_count_re: False               # True: btmpv generation can be count as renewable generation
 elecfx_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
-lcp_constraint_ge: False      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
+lcp_constraint_ge: True      # True: set the smallest electrification ratio numbers, False: set the fixed numbers
 dss_synthetic_ts: False          # True: use 50% DSS synthetic TS, False: full heating electrification
 gt_based_on_current: False        # True: >= fixed 1999 MW new GT; False: >= 0 MW new GT (True for retiring IP...
 ev_set_profile_boolean: True     # True: Used user-provided EV charging profile; False: uses inputs under "EV" below
@@ -25,48 +26,47 @@ greenfield_boolean: False        # True: Set existing GT, solar, wind, tx, hydro
 copper_plate_boolean: False      # True: Set copper plate transmission condition
 same_nodal_costs: False          # True: Set nodal costs to be the same
 no_hydro_gen: False
+peak_ng_flow_limit_nodal: False    # True: Set nodal ng flow limited to the current value
+peak_ng_flow_limit_regional: False # True: Set state ng flow limited to the current value
+ps_without_emissions: False       # True: ps technology achieve DSS load shaving, will not produce DSS extra emissions
+
 
 # input year
-proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
+# proj_year: 2030    # input > 2019, use the projection BTM PV; input = 2019, use the btmpv_existing_mw
 
 # General model assumptions
-num_years: 6
-num_hours: 52608
+num_years: 5
+num_hours: 43819
 num_nodes: 4
 i_rate: 0.05
-base_datetime: '1/1/2007 0:00'
+base_datetime: '1/1/2015 0:00'
 
 ## Wind assumptions
 # Cost
-onshore_capex_medium_mw: 1.992e6
-onshore_capex_low_mw: 1.698e6
-onshore_om_cost_mw_yr: 18.1e3
-offshore_capex_medium_mw: 3.583e6
-offshore_capex_low_mw: 2.256e6
-offshore_om_cost_mw_yr: 3.8e4
+onshore_capex_medium_mw: 1.322e6
+onshore_om_cost_mw_yr: 28.013e3
+offshore_capex_medium_mw: 3.882e6
+offshore_om_cost_mw_yr: 74.834e3
 # Capacities
-onshore_cap_existing_mw: [1985, 0, 0, 0]
+onshore_cap_existing_mw: [2737, 0, 0, 0]
 onshore_cap_limit_mw: [32402, 4376, 0, 0]
 offshore_cap_existing_mw: [0, 0, 0, 0]
 offshore_cap_total_limit_mw: 57938
 
 ## Utility-scale solar (solar) and behind-the-meter (btmpv) solar assumptions:
 # Costs
-solar_capex_medium_mw: [1.341e6, 1.341e6, 1.593e6, 1.593e6]
-solar_capex_low_mw: [1.006e6, 1.006e6, 1.195e6, 1.195e6]
-solar_om_cost_mw_yr: 10.4e3
+solar_capex_medium_mw: [0.974e6, 0.974e6, 0.974e6, 0.974e6]
+solar_om_cost_mw_yr: 15.807e3
 # Capacities
-solar_cap_existing_mw: [0, 0, 0, 56.5]
+solar_cap_existing_mw: [40, 100, 0, 54.4]
 solar_cap_limit_mw: [212710, 44899, 481, 2743]
-btmpv_cap_existing_mw: [562, 523, 293, 259]
-btmpv_dist: [0.3192, 0.3577, 0.1659, 0.1572]
+btmpv_cap_existing_mw: [2256, 1372, 681, 918]
+btmpv_dist: [0.4731, 0.2625, 0.0888, 0.1756]
 
 ## Battery storage assumptions
 # Cost
 battery_capex_medium_mw: 0
-battery_capex_low_mw: 0
 battery_capex_medium_mwh: 208e3
-battery_capex_low_mwh: 144e3
 # Efficiencies, self-discharge, p2e ratio constraint, existing capacties
 battery_eff: 0.946 # One way - same efficiency on charge and discharge
 battery_self_discharge: 0.001
@@ -94,6 +94,7 @@ new_gt_startup_cost_mw: 69
 new_gt_om_cost_mwh: 4.48
 new_gt_om_cost_mw_yr: 6.97e3
 new_gt_efficiency: 0.344
+new_gt_lifespan: 20
 # Existing GT assumptions (costs, existing capacity, efficiency, and addl. cap from simulations)
 existing_gt_startup_cost_mw: 79
 existing_gt_cap_mw: [3934.2, 8622.5, 10249.9, 4192.7]
@@ -103,8 +104,8 @@ current_scenario_addl_gt_cap: [0, 1132, 0, 867] # based on the 'current' scenari
 ## nodal nuclear, hydro, and biofuel RE generation assumptions
 # Nuclear
 nuc_cost_mwh: [37.94, 0, 26.82, 0]
-nuc_cap_mw: [3536.8, 0, 0, 0] # current w/ IP: [3536.8, 0, 2311, 0]; 2030: [3536.8, 0, 0, 0]
-nuc_avg_gen_mw: [3207, 0, 0, 0] # current w/ IP: [3207, 0, 1906, 0]; 2030: [3207, 0, 0, 0]
+nuc_cap_mw: [3355, 0, 0, 0] # Before 2050: [3355, 0, 0, 0], 2050: [2135, 0, 0, 0]
+nuc_avg_gen_mw: [3043, 0, 0, 0] # Before 2050: [3043] # 2050: [1936, 0, 0, 0]
 
 # Hydropower
 hydro_cost_mwh: [18.47, 28.02, 0, 0]
@@ -127,6 +128,16 @@ cap_market_cost_mw_yr: [27640, 53440, 101303, 104600]  # $/MW-yr
 existing_trans_load_mwh_yr: [69.683e6, 75.52e6] # MWh sales in {nodes 1 & 2}, {nodes 3 and 4}
 existing_trans_cost_mwh: [16.9, 27.3] # $/MWh transmision average price component for {nodes 1 & 2}, {nodes 3 and 4}
 
+## Distribution incremental cost
+new_dist_cost_mw_yr: [34716, 61247, 199400, 109860]
+current_demand_peak: [10220, 4715, 13484, 5806]
+dist_peak_cost_mtp: 1  # set as 1 time of the NYS study numbers
+
+## NG pipe flow limits
+ng_current_max_flow_mw_nodal: [40961.60, 18239.71, 49251.14, 19452.69]
+ng_current_max_flow_mw_regional: 124061.63
+ng_flow_nominal_cost: 10
+
 ## EV assumptions
 ev_full_cap_mw: 6716
 ev_charging_p2e_ratio: 0.166666667
@@ -142,20 +153,24 @@ nominal_storage_cost: 0.01
 nominal_trans_cost_mwh: 0.01
 
 ## Emissions assumptions -- all quantities measured in tons CO2e
-baseline_emissions_kt: 302770
-ng_e_factor_t_mwh: 0.3966601
-flex_space_heating_emissions_kt: [26305, 12388, 27026, 11749]
-flex_const_heating_emissions_kt: [9477, 4732, 13517, 5660]
-flex_trans_emissions_kt: 73703
-fixed_trans_emissions_kt: 21956
-fixed_ind_emissions_kt: 19365
-waste_emissions_kt: 2784
+## The numbers used here are 3-sector GHG emissions for lifespan natural gas leakage and 20 years global warming
+## potential. Set fixed transportation, industry, and waste incineration zeros for only considering 3-sector.
+## The numbers commented are the emissions assumptions adjusted to lower methane leakage (tried to align with NYSERDA
+## GHG inventory). And uses 100 years global warming potential instead of 20 years.
+baseline_emissions_kt: 293885.8 # 250800 # 189442
+ng_e_factor_t_mwh: 0.37866 # 0.18845
+flex_space_heating_emissions_kt: [25070,11788,25734,11173] # [13441, 6740, 14335, 6569]
+flex_const_heating_emissions_kt: [9035,4505,12874,5385] # [4772, 2511, 7099, 3089]
+flex_trans_emissions_kt: 69162 # 62204
+fixed_trans_emissions_kt: 0
+fixed_ind_emissions_kt: 0
+waste_emissions_kt: 0
 
 # Gurobi solver parameters
 feasibility_tol: 0.001
 optimality_tol: 0.001
 method: 2
-bar_conv_tol: 0
+bar_conv_tol: 0.00000001
 bar_order: 0
 crossover: 0
 nonconvex: 2
