@@ -2,11 +2,14 @@ import os
 import math
 import argparse
 import yaml
+import datetime
 import numpy as np
 import pandas as pd
-from datetime import datetime as dt
-import datetime
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import matplotlib.ticker as ticker
 from glob import glob
+from datetime import datetime as dt
 from scripts.utils import (get_args, load_timeseries, return_tx_dict,
                    btmpv_capacity_projection, return_costs_for_model)
 
@@ -43,6 +46,9 @@ def cost_calculations(args, cap_results_df, processed_df):
                    * np.array(cost_dict['h2_cost_per_mw']) +
                    np.array([cap_results_df[f'h2_energy_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T
                    * np.array(cost_dict['h2_cost_per_mwh'])), axis=1)
+    # existing gt cost
+    existing_gt_cost = np.sum(np.array([cap_results_df[f'gt_existing_cap_node_{ix+1}'] for ix in range(args.num_nodes)]).T *
+                              np.array(cost_dict['existing_gt_cost_per_mw']), axis=1)
 
     # Determine total cost of new transmission by adding the cost of new transmission capacity at each interface +
     # directionality
@@ -83,8 +89,9 @@ def cost_calculations(args, cap_results_df, processed_df):
     existing_tx_costs = np.sum([args.existing_trans_cost_mwh[i]*float(args.existing_trans_load_mwh_yr[i]) for i in
                                 range(len(args.existing_trans_load_mwh_yr))]) * args.num_years
     existing_cap_for_payments = (int(args.nuclear_boolean)*np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw) +
-                                  np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
-    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr)) * args.num_years
+                                  np.array(args.biofuel_cap_mw))
+    existing_cap_cost = np.sum(existing_cap_for_payments * np.array(args.cap_market_cost_mw_yr)) * args.num_years + \
+                        existing_gt_cost
 
     supp_cost = existing_tx_costs + existing_cap_cost
 
@@ -97,6 +104,10 @@ def cost_calculations(args, cap_results_df, processed_df):
     generation_cost = (total_hydro_cost + total_nuclear_cost + total_biofuel_cost + total_new_gt_fuel_cost +
                        total_existing_gt_fuel_cost + total_new_gt_ramp_cost + total_existing_gt_ramp_cost +
                        total_imports_cost)
+
+    ## cost from distribution
+    peak_load_dist = np.array([cap_results_df[f'dist_upg_peak_load_add_node_{i+1}'] for i in range(args.num_nodes)]).T
+    dist_upg_cost = np.sum(peak_load_dist * cost_dict['dist_upg_mw'], axis=1)
 
     ## Find wind, solar LCOEs based on generation and curtailment
     # Calculate the LCOES of wind and solar
@@ -116,10 +127,8 @@ def cost_calculations(args, cap_results_df, processed_df):
 
 
     # Find gas LCOE
-    existing_gas_gen_cost = np.sum((np.array(args.existing_gt_cap_mw) * np.array(args.cap_market_cost_mw_yr)) *
-                                   args.num_years)
     processed_df['gas_gen_lcoe'] = (new_gt_cost + total_new_gt_fuel_cost + total_existing_gt_fuel_cost +
-                                    total_new_gt_ramp_cost + total_existing_gt_ramp_cost + existing_gas_gen_cost) / \
+                                    total_new_gt_ramp_cost + total_existing_gt_ramp_cost + existing_gt_cost) / \
                                    ((processed_df['gt_new_util_regional_avg_mw'] +
                                      processed_df['gt_existing_util_regional_avg_mw']) * T)
 
@@ -128,7 +137,7 @@ def cost_calculations(args, cap_results_df, processed_df):
     processed_df['battery_cost_per_mwh_discharge'] = new_batt_cost/(processed_df['battery_discharge_regional_avg_mw'] * T)
 
 
-    return new_cap_cost, generation_cost, supp_cost
+    return new_cap_cost, generation_cost, supp_cost, dist_upg_cost
 
 def allocate_curtailment(args, ts_results_df):
 
@@ -163,7 +172,7 @@ def load_ts_based_results(args, processed_df):
     :return: processed_df, with results from the timeseries data added
     '''
     T = args.num_hours
-    dt_start = datetime.datetime(year=2007, month=1, day=1, hour=0)
+    dt_start = datetime.datetime(year=2015, month=1, day=1, hour=0)
     dt_delta = datetime.timedelta(hours=1)
 
     # Collect transmission array data
@@ -176,7 +185,7 @@ def load_ts_based_results(args, processed_df):
     baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     # Load all the timeseries files present in the corresponding folder
     ts_results_dir = f'{args.results_dir}/{args.dir_time}/ts_results'
@@ -349,15 +358,14 @@ def load_ts_based_results(args, processed_df):
         hydro = (np.sum(ts_csv.loc[:, 'fixed_hydro_gen_node_1':'fixed_hydro_gen_node_4'], axis=1) +
                  np.sum(ts_csv.loc[:, 'flex_hydro_node_1':'flex_hydro_node_2'], axis=1))
 
-        gas = np.round((np.sum(ts_csv.loc[:, 'gt_new_util_node_1':'gt_new_util_node_4'], axis=1) +
-                        np.sum(ts_csv.loc[:, 'gt_existing_util_node_1':'gt_existing_util_node_4'], axis=1)))
+        gas = np.array(np.round((np.sum(ts_csv.loc[:, 'gt_new_util_node_1':'gt_new_util_node_4'], axis=1) +
+                                 np.sum(ts_csv.loc[:, 'gt_existing_util_node_1':'gt_existing_util_node_4'], axis=1))))
 
         diff = demand - imports_and_btm - wind_and_solar - hydro
 
-        pos_days = np.argwhere(diff > 0)[:, 0]
-        neg_days = np.argwhere(diff < 0)[:, 0]
+        #pos_days = np.argwhere(diff > 0)[:, 0]
+        #neg_days = np.argwhere(diff < 0)[:, 0]
         gas_days = np.argwhere(gas == 0)[:, 0]
-
         excess_lowc_gen[ix] = -np.sum(diff[gas_days]) / T
 
         # curtail = np.sum(ts_csv.loc[:, 'energy_balance_slack_node_1':  'energy_balance_slack_node_4'], axis=1)
@@ -398,6 +406,11 @@ def load_ts_based_results(args, processed_df):
     for ix in range(args.num_nodes):
         processed_df[f'wind_solar_uc_gen_node_{ix+1}_mw'] = solar_wind_gen_nodal_avg_mw[:, ix]
 
+    for ix in range(args.num_nodes):
+        processed_df[f'capacity_factor_node_{ix+1}_%'] = solar_wind_gen_nodal_avg_mw[:, ix] / (processed_df[f'onshore_cap_node_{ix+1}_mw']
+                                                                                              + processed_df[f'offshore_cap_node_{ix+1}_mw']
+                                                                                              + processed_df[f'solar_cap_node_{ix+1}_mw']) * 100
+
     # Find minimum generation and when it occurs
     processed_df[f'wind_solar_uc_gen_regional_min_mw'] = solar_wind_gen_min_mw
     processed_df[f'wind_solar_uc_gen_regional_min_datetime'] = min_solar_wind_gen_datetime
@@ -406,10 +419,10 @@ def load_ts_based_results(args, processed_df):
     processed_df['curtailment_regional_avg_mw'] = np.sum(curtailment, axis=1)/T
     for ix in range(args.num_nodes):
         processed_df[f'curtailment_node_{ix + 1}_avg_mw'] = curtailment[:, ix] / T
+        processed_df[f'curtailment_node_{ix + 1}_avg_%'] = processed_df[f'curtailment_node_{ix + 1}_avg_mw'] / processed_df[f'wind_solar_uc_gen_node_{ix+1}_mw']
 
     # Add curtailment %
-    processed_df['curtailment_regional_avg_%'] = processed_df['curtailment_regional_avg_mw'] / \
-                                                 processed_df[f'wind_solar_uc_gen_regional_avg_mw'] * 100
+    processed_df['curtailment_regional_avg_%'] = processed_df['curtailment_regional_avg_mw'] / processed_df[f'wind_solar_uc_gen_regional_avg_mw'] * 100
 
     # Add resource specific curtailment calculations
     processed_df['onshore_curtailed_gen_mw'] = np.sum(onshore_curtailed_mw, axis=1)/T
@@ -580,13 +593,13 @@ def load_ts_based_results(args, processed_df):
     return processed_df
 
 
-def raw_results_retrieval(args, m, model_config, scen_ix):
+def raw_results_retrieval(args, m, model_config, scen_ix, proj_year):
     T = args.num_hours
 
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 
@@ -598,15 +611,16 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
         cf_mult = 1
 
     # BTMPV Capacity
-    if args.proj_year == 2019:
+    if proj_year == 2019:
         btmpv_cap = args.btmpv_cap_existing_mw
     else:
-        btmpv_cap = [btmpv_capacity_projection(args.proj_year) * k for k in args.btmpv_dist]
+        btmpv_cap = m.getVarByName('btmpv_state_capacity_mw').X
+        btmpv_cap = [btmpv_cap * k for k in args.btmpv_dist]
 
 
     cap_columns = ['eheating_rate_node_', 'ev_rate_node_', 'onshore_cap_node_', 'offshore_cap_node_',
-                   'solar_cap_node_', 'gt_new_cap_node_', 'batt_energy_cap_node_', 'batt_power_cap_node_',
-                   'h2_energy_cap_node_', 'h2_power_cap_node_']
+                   'solar_cap_node_', 'gt_new_cap_node_', 'gt_existing_cap_node_', 'batt_energy_cap_node_',
+                   'batt_power_cap_node_', 'h2_energy_cap_node_', 'h2_power_cap_node_', 'dist_upg_peak_load_add_node_']
 
     # Populate the capacity results
     cap_results_df = pd.DataFrame()
@@ -617,7 +631,7 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
         if col == 'gt_new_cap_node_':
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
-                cap_results_df[column_string] = [m.getVarByName(column_string).X * args.reserve_req/cf_mult]
+                cap_results_df[column_string] = [m.getVarByName(column_string).X/cf_mult]
         else:
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
@@ -627,12 +641,16 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     for ix in range(args.num_nodes):
         cap_results_df[f'btm_cap_node_{ix+1}'] = btmpv_cap[ix]
 
+    # Add ng flow
+    for ix in range(args.num_nodes):
+        cap_results_df[f'ng_flow_mw_max_nodal_{ix+1}'] = [m.getVarByName(f'ng_flow_maximum[{ix}]').X / cf_mult]
+    cap_results_df['ng_flow_mw_max_regional'] = [m.getVarByName(f'ng_flow_maximum[{args.num_nodes}]').X/cf_mult]
+
     ts_columns = ['ev_charging_node_', 'energy_balance_slack_node_', 'flex_hydro_node_', 'batt_charge_node_',
                   'batt_discharge_node_',
                   'batt_level_node_', 'h2_charge_node_', 'h2_discharge_node_', 'h2_level_node_',
                   'gt_new_util_node_', 'gt_new_diff_node_', 'gt_new_abs_node_', 'gt_existing_util_node_',
-                  'gt_existing_diff_node_', 'gt_existing_abs_node_', 'biofuel_util_node_', 'elec_import_node_',
-                  ]
+                  'gt_existing_diff_node_', 'gt_existing_abs_node_', 'biofuel_util_node_', 'elec_import_node_']
 
     ## Populate timeseries Dataframe
     ts_results_df = pd.DataFrame()
@@ -680,23 +698,44 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     for ix in range(args.num_nodes):
         ts_results_df[f'nuclear_gen_node_{ix+1}'] = int(args.nuclear_boolean) * args.nuc_avg_gen_mw[ix]
 
+    # # Add timeseries from ts_columns
+    # for ix, col in enumerate(ts_columns):
+    #     ts_results_array = np.zeros((T, args.num_nodes))
+    #     if ix == 1: # Collect the energy balance slack ts
+    #         for jx in range(args.num_nodes):
+    #             column_string = f'{col}{jx+1}'
+    #             for kx in range(T):
+    #                 ts_results_array[kx, jx] = m.getConstrByName(f'{column_string}[{kx}]').Slack/cf_mult
+    #             ## Assign curtailment to the results df, changing the sign to +
+    #             ts_results_df[column_string] = -ts_results_array[:, jx]
+    #     else: # Collect the variable values
+    #         for jx in range(args.num_nodes):
+    #             column_string = f'{col}{jx+1}'
+    #             for kx in range(T):
+    #                 ts_results_array[kx, jx] = m.getVarByName(f'{column_string}[{kx}]').X/cf_mult
+    #             ts_results_df[column_string] = ts_results_array[:, jx]
+    # Collect new columns in a dictionary
+    new_columns = {}
+
     # Add timeseries from ts_columns
     for ix, col in enumerate(ts_columns):
         ts_results_array = np.zeros((T, args.num_nodes))
-        if ix == 1: # Collect the energy balance slack ts
+        if ix == 1:  # Collect the energy balance slack ts
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
                 for kx in range(T):
-                    ts_results_array[kx, jx] = m.getConstrByName(f'{column_string}[{kx}]').Slack/cf_mult
-                ## Assign curtailment to the results df, changing the sign to +
-                ts_results_df[column_string] = -ts_results_array[:, jx]
-        else: # Collect the variable values
+                    ts_results_array[kx, jx] = m.getConstrByName(f'{column_string}[{kx}]').Slack / cf_mult
+                # Assign curtailment to the results df, changing the sign to +
+                new_columns[column_string] = -ts_results_array[:, jx]
+        else:  # Collect the variable values
             for jx in range(args.num_nodes):
                 column_string = f'{col}{jx+1}'
                 for kx in range(T):
-                    ts_results_array[kx, jx] = m.getVarByName(f'{column_string}[{kx}]').X/cf_mult
-                ts_results_df[column_string] = ts_results_array[:, jx]
+                    ts_results_array[kx, jx] = m.getVarByName(f'{column_string}[{kx}]').X / cf_mult
+                new_columns[column_string] = ts_results_array[:, jx]
 
+    # Add all new columns to DataFrame at once
+    ts_results_df = pd.concat([ts_results_df, pd.DataFrame(new_columns)], axis=1)
 
     # Transmission result processing
     tx_new_cap_results   = np.zeros(len(tx_dict))
@@ -755,9 +794,26 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
 
     veh_elecfx = np.sum(ev_elecfx_nodal_ratios)
 
+    # find the ng maximum flow
+    for ix in range(args.num_nodes):
+        ts_results_df[f'ng_flow_mw_nodal_{ix+1}'] = \
+            full_ng_heating_load_hourly_mw[:, ix] * (1 - np.array(cap_results_df[f'eheating_rate_node_{ix+1}'])) + \
+            full_ng_dss50_hourly_mw[:, ix] * np.array(cap_results_df[f'eheating_rate_node_{ix+1}']) * \
+            int(args.dss_synthetic_ts) * (1 - int(args.ps_without_emissions)) + \
+            np.array(ts_results_df[f'gt_new_util_node_{ix+1}']) / args.new_gt_efficiency + \
+            np.array(ts_results_df[f'gt_existing_util_node_{ix+1}']) / args.existing_gt_efficiency
+
 
     # LCT GHGT elec results
     dghg_target = m.getVarByName('ghg_target').X / cf_mult
+    elec_emissions = m.getVarByName('elec_emissions_kt').X / cf_mult
+    heating_emissions = m.getVarByName('heating_emissions_kt').X / cf_mult
+    heating_emissions_dss = m.getVarByName('heating_emissions_dss_kt').X / cf_mult
+    trans_emissions = m.getVarByName('trans_emissions_kt').X / cf_mult
+    #fixed_trans_emissions = m.getVarByName('fixed_trans_emissions_kt').X / cf_mult
+    #fixed_industrial_emissions = m.getVarByName('fixed_ind_emissions_kt').X / cf_mult
+    #waste_emissions = m.getVarByName('waste_emissions_kt').X / cf_mult
+    baseline_emissions = m.getVarByName('baseline_emissions_kt').X / cf_mult
 
     # Round
 
@@ -765,10 +821,32 @@ def raw_results_retrieval(args, m, model_config, scen_ix):
     cap_results_df['model_config'] = model_config
     cap_results_df['re_cost_scenario'] = args.re_cost_scenario
     cap_results_df['lct'] = lct
-    cap_results_df['ghg_reduction'] = dghg_target
+    cap_results_df['ghg_reduction_target'] = dghg_target
     cap_results_df['heating_elecfx_rate'] = heating_elecfx
     cap_results_df['veh_elecfx_rate'] = veh_elecfx
-
+    #cap_results_df['proj_year'] = proj_year
+    cap_results_df['elec_emissions_kt'] = elec_emissions
+    cap_results_df['heating_emissions_kt'] = heating_emissions
+    cap_results_df['heating_emissions_dss_kt'] = heating_emissions_dss
+    cap_results_df['trans_emissions_kt'] = trans_emissions
+    #cap_results_df['fixed_trans_emissions_kt'] = fixed_trans_emissions
+    #cap_results_df['fixed_ind_emissions_kt'] = fixed_industrial_emissions
+    #cap_results_df['waste_emissions_kt'] = waste_emissions
+    cap_results_df['total_emissions_kt'] = (elec_emissions +
+                                            heating_emissions +
+                                            heating_emissions_dss +
+                                            trans_emissions)# +
+                                            #fixed_trans_emissions +
+                                            #fixed_industrial_emissions +
+                                            #waste_emissions)
+    cap_results_df['baseline_emissions_kt'] = baseline_emissions
+    #cap_results_df['actual_ghg_reduction'] = (elec_emissions +
+    #                                         heating_emissions +
+    #                                         heating_emissions_dss +
+    #                                         trans_emissions +
+    #                                         args.fixed_trans_emissions_kt +
+    #                                         args.fixed_ind_emissions_kt +
+    #                                         waste_emissions_kt) / args.baseline_emissions_kt
 
     results_dir = f'{args.results_dir}/{args.dir_time}'
     cap_dir = f'{results_dir}/cap_results'
@@ -798,7 +876,7 @@ def full_results_processing(args):
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     tx_dict = return_tx_dict(args)
 
@@ -812,7 +890,7 @@ def full_results_processing(args):
     # results present in the model run folder
     cap_results_df = pd.DataFrame()
     for file in cap_results_csvs:
-        cap_results_df = cap_results_df.append(pd.read_csv(file))
+        cap_results_df = pd.concat([cap_results_df, pd.read_csv(file)], ignore_index=True)
     cap_results_df = cap_results_df.reset_index()
 
     # Collect results from the raw capacity dataframe
@@ -822,6 +900,7 @@ def full_results_processing(args):
     offshore_cap = np.array([cap_results_df[f'offshore_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     solar_cap = np.array([cap_results_df[f'solar_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     gt_new_cap = np.array([cap_results_df[f'gt_new_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
+    gt_existing_cap = np.array([cap_results_df[f'gt_existing_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     battery_energy_cap = np.array([cap_results_df[f'batt_energy_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     battery_power_cap = np.array([cap_results_df[f'batt_power_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
     h2_energy_cap = np.array([cap_results_df[f'h2_energy_cap_node_{i+1}'] for i in range(args.num_nodes)]).T
@@ -838,7 +917,8 @@ def full_results_processing(args):
     processed_df['scen_ix'] = scen_ixs
     processed_df['model_config'] = cap_results_df['model_config']
     processed_df['rgt/lct'] = cap_results_df['lct'].round(decimals=3)
-    processed_df['ghg_reduction'] = cap_results_df['ghg_reduction']
+    #processed_df['proj_year'] = cap_results_df['proj_year']
+    processed_df['ghg_reduction_target'] = cap_results_df['ghg_reduction_target']
     # Add heating and vehicle electrification rates for the entire region. These are based on the thermal loads of each
     processed_df['heating_elecfx_rate'] = cap_results_df['heating_elecfx_rate']
     processed_df['veh_elecfx_rate'] = cap_results_df['veh_elecfx_rate']
@@ -877,7 +957,7 @@ def full_results_processing(args):
     processed_df['solar_cap_gw'] = processed_df['solar_cap_mw']/1000
     processed_df['total_windsolar_cap_gw'] = processed_df['total_wind_gw'] + processed_df['solar_cap_gw']
     processed_df['new_gt_cap_mw'] = np.sum(gt_new_cap, axis=1)
-    processed_df['existing_gt_cap_mw'] = np.sum(args.existing_gt_cap_mw)
+    processed_df['existing_gt_cap_mw'] = np.sum(gt_existing_cap, axis=1)
     processed_df['total_gas_cap_gw'] = (processed_df['new_gt_cap_mw'] + processed_df['existing_gt_cap_mw'])/1000
     processed_df['battery_energy_cap_mwh'] = np.sum(battery_energy_cap, axis=1)
     processed_df['battery_power_cap_mw'] = np.sum(battery_power_cap, axis=1)
@@ -911,14 +991,23 @@ def full_results_processing(args):
 
 
     nodal_capacity_strings = ['onshore_cap_node_', 'offshore_cap_node_', 'solar_cap_node_', 'gt_new_cap_node_',
-                              'batt_energy_cap_node_', 'h2_energy_cap_node_']
+                              'gt_existing_cap_node_', 'batt_energy_cap_node_', 'h2_energy_cap_node_']
     # Add new wind, solar, and gt_capacity by node
     for ix, cap_str in enumerate(nodal_capacity_strings):
         for jx in range(args.num_nodes):
-            if ix < 4:
+            if ix < 5:
                 processed_df[f'{cap_str}{jx+1}_mw'] = cap_results_df[f'{cap_str}{jx+1}']
             else:
                 processed_df[f'{cap_str}{jx+1}_mwh'] = cap_results_df[f'{cap_str}{jx + 1}']
+
+    # ng flow results from
+    for ix in range(args.num_nodes):
+        processed_df[f'ng_flow_mw_max_node_{ix+1}'] = cap_results_df[f'ng_flow_mw_max_nodal_{ix+1}']
+    processed_df[f'ng_flow_mw_max_regional'] = cap_results_df['ng_flow_mw_max_regional']
+
+    # dist upg peak load increment from
+    for ix in range(args.num_nodes):
+        processed_df[f'dist_peak_load_node_{ix+1}'] = cap_results_df[f'dist_upg_peak_load_add_node_{ix+1}']
 
     # Add upstate and downstate quantities
     processed_df['low-c_cap_upstate_mw'] = \
@@ -944,7 +1033,7 @@ def full_results_processing(args):
     processed_df = load_ts_based_results(args, processed_df)
 
     # Load total costs
-    new_cap_cost, generation_cost, supp_cost = cost_calculations(args, cap_results_df, processed_df)
+    new_cap_cost, generation_cost, supp_cost, dist_upg_cost = cost_calculations(args, cap_results_df, processed_df)
 
     # Find total MWh for LCOE calculations
     btm_avg_mwh = np.sum(btm_cap * np.mean(btmpv_pot_hourly, axis=0), axis=1)
@@ -954,9 +1043,10 @@ def full_results_processing(args):
     processed_df['new_cap_lcoe']    = new_cap_cost/total_mwh_for_lcoe
     processed_df['generation_lcoe'] = generation_cost/total_mwh_for_lcoe
     processed_df['supp_cost_lcoe']  = supp_cost/total_mwh_for_lcoe
-    processed_df['total_lcoe'] = (new_cap_cost + generation_cost + supp_cost)/total_mwh_for_lcoe
-    processed_df['total_annualized_cost'] = (new_cap_cost + generation_cost + supp_cost)/args.num_years
-
+    processed_df['dist_upg_cost_lcoe']  = dist_upg_cost/total_mwh_for_lcoe
+    processed_df['total_lcoe'] = (new_cap_cost + generation_cost + supp_cost + dist_upg_cost)/total_mwh_for_lcoe
+    processed_df['LCOE'] = processed_df['total_lcoe'] - processed_df['dist_upg_cost_lcoe']
+    processed_df['total_annualized_cost'] = (new_cap_cost + generation_cost + supp_cost + dist_upg_cost)/args.num_years
 
     ## calculate the renewable electricity ratio / low-carbon electricity ratio
     # average demand for renewable depend on
@@ -975,6 +1065,16 @@ def full_results_processing(args):
     processed_df['rgt/lct'] = (int(args.rgt_boolean) * processed_df['model_rgt'] +
                                (1 - int(args.rgt_boolean)) * processed_df['model_lct'])
 
+    # add emissions results
+    processed_df['elec_emissions_kt'] = cap_results_df['elec_emissions_kt']
+    processed_df['heating_emissions_kt'] = cap_results_df['heating_emissions_kt']
+    processed_df['heating_emissions_dss_kt'] = cap_results_df['heating_emissions_dss_kt']
+    processed_df['trans_emissions_kt'] = cap_results_df['trans_emissions_kt']
+    processed_df['total_emissions_kt'] = cap_results_df['total_emissions_kt']
+    processed_df['grid_emission_%'] = (processed_df['elec_emissions_kt'] / processed_df['total_emissions_kt']) * 100
+    processed_df['heating_&_ev_emission_%'] = ((processed_df['heating_emissions_kt'] + processed_df['heating_emissions_dss_kt'] + processed_df['trans_emissions_kt']) / processed_df['total_emissions_kt']) * 100
+    processed_df['baseline_emissions_kt'] = cap_results_df['baseline_emissions_kt']
+
     # Write out the processed dataframe!
     processed_df = processed_df.round(decimals=3)
     processed_df = processed_df.set_index('scen_ix')
@@ -982,6 +1082,255 @@ def full_results_processing(args):
     processed_df_filename = f'{args.results_dir}/{args.dir_time}/processed_results_{args.dir_time}.xlsx'
     processed_df.to_excel(processed_df_filename)
 
+    # Plot emission pie chart
+    emissions_data = processed_df[['elec_emissions_kt', 'heating_emissions_kt', 'heating_emissions_dss_kt', 'trans_emissions_kt']].sum()
+    labels = emissions_data.index
+    sizes = emissions_data.values
+
+    fig1, ax1 = plt.subplots()
+    ax1.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+    # Save the figure using the naming format from the active selection
+    image_filename = f'{args.results_dir}/{args.dir_time}/emission_pie_chart_{args.dir_time}.png'
+    plt.savefig(image_filename)
+    
+    def plot_energy_mix(processed_df):
+        length = range(len(processed_df))
+        x = list(length)  # Assuming x is defined as the range index of processed_df
+
+        other_mw_values = processed_df['nuc_gen_avg_mw'] + processed_df['hydro_gen_regional_mw'] + processed_df['total_gas_cap_gw']*1000 + processed_df['elec_import_regional_avg_mw'] + processed_df['biofuel_util_regional_avg_mw']
+
+        plt.figure(figsize=(7, 7))
+        plt.bar(x, other_mw_values, width=0.15, color='grey', edgecolor='black', linewidth=1, label='Other')
+
+        # Plot capacities first
+        # Onshore Wind Capacity
+        plot_category(x, processed_df, 'onshore_cap_mw', other_mw_values, '#93c47d', 'Onshore Wind Capacity')
+        offshore_mw_bottom = other_mw_values + processed_df['onshore_cap_mw']
+        # Offshore Wind Capacity
+        plot_category(x, processed_df, 'offshore_cap_mw', offshore_mw_bottom, '#6d9eeb', 'Offshore Wind Capacity')
+        solar_mw_bottom = offshore_mw_bottom + processed_df['offshore_cap_mw']
+        # Solar Capacity
+        plot_category(x, processed_df, 'solar_cap_mw', solar_mw_bottom, '#f1c232', 'Utility Solar Capacity')
+        solar_top = solar_mw_bottom + processed_df['solar_cap_mw']
+        # BTM Capacity
+        plot_category(x, processed_df, 'btm_power_cap_mw', solar_top, '#ff7400', 'BTMPV Capacity')
+        btmpv_top = solar_top + processed_df['btm_power_cap_mw']
+
+        # Then plot generation and curtailment on top
+        # Onshore Wind Generation and Curtailment
+        plot_category(x, processed_df, 'onshore_uc_gen_mw', other_mw_values + processed_df['onshore_cap_mw'] - processed_df['onshore_uc_gen_mw'], '#b6d7a8', 'Onshore Wind Generation')
+        plot_category(x, processed_df, 'onshore_curtailed_gen_mw', other_mw_values + processed_df['onshore_cap_mw'] - processed_df['onshore_curtailed_gen_mw'], '#d9ead3', 'Onshore Wind Curtailment')
+
+        # Offshore Wind Generation and Curtailment
+        plot_category(x, processed_df, 'offshore_uc_gen_mw', offshore_mw_bottom + processed_df['offshore_cap_mw'] - processed_df['offshore_uc_gen_mw'], '#a4c2f4', 'Offshore Wind Generation')
+        plot_category(x, processed_df, 'offshore_curtailed_gen_mw', offshore_mw_bottom + processed_df['offshore_cap_mw'] - processed_df['offshore_curtailed_gen_mw'], '#c9daf8', 'Offshore Wind Curtailment')
+
+        # Solar Generation and Curtailment
+        plot_category(x, processed_df, 'solar_uc_gen_mw', solar_mw_bottom + processed_df['solar_cap_mw'] - processed_df['solar_uc_gen_mw'], '#ffd966', 'Utility Solar Generation')
+        plot_category(x, processed_df, 'solar_curtailed_gen_mw', solar_mw_bottom + processed_df['solar_cap_mw'] - processed_df['solar_curtailed_gen_mw'], '#ffe599', 'Utility Solar Curtailment')
+
+        plt.hlines(y = offshore_mw_bottom.iloc[0], xmin = -0.075, xmax = 0.075, color='black', linewidth=1)
+        plt.hlines(y = solar_mw_bottom.iloc[0], xmin = -0.075, xmax = 0.075, color='black', linewidth=1)
+        plt.hlines(y = solar_top.iloc[0], xmin = -0.075, xmax = 0.075, color='black', linewidth=1)
+        plt.hlines(y = btmpv_top.iloc[0], xmin = -0.075, xmax = 0.075, color='black', linewidth=1)
+
+        plot_category(x, processed_df, 'btm_gen_avg_mw', solar_top + processed_df['btm_power_cap_mw'] - processed_df['btm_gen_avg_mw'] - 100, '#fe8e30', 'BTMPV Generation')    
+
+        # Final plot adjustments
+        plt.ylabel('Capacity in MW')
+        plt.title('The Mix of Renewable Energy Capacity, Generation, and Curtailment')
+        plt.xlabel(f"RE of {round(processed_df['model_rgt'].mean() * 100, 2)}%")
+        plt.legend(loc='upper right', bbox_to_anchor=(1.5, 1))
+        plt.xlim(-0.5, len(length)-0.5)
+        plt.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+        ax = plt.gca()
+        ax.set_axisbelow(True)
+        plt.grid(axis='y', alpha=0.6)
+        plt.savefig(f'{args.results_dir}/{args.dir_time}/energy_mix_{args.dir_time}.png', bbox_inches='tight')   
+
+    def plot_category(x, df, column_name, bottom_values, color, label, percentage_annotation=False):
+        # if 'capacity is in the column_name'
+        if 'cap_mw' in column_name:
+            bars = plt.bar(x, df[column_name], width=0.15, bottom=bottom_values, color=color, label=label, edgecolor='black', linewidth = 1)
+        else:
+            bars = plt.bar(x, df[column_name], width=0.145, bottom=bottom_values, color=color, label=label)
+
+    plot_energy_mix(processed_df)
+
+    def plot_power_mix(dfs, space=0.75):
+        num_dfs = len(dfs)
+        bar_width = 0.15
+        index = np.arange(len(dfs[0]))
+
+        plt.figure(figsize=(7, 7))
+
+        x_positions = []
+
+        for i, processed_df in enumerate(dfs):
+            x = index + i * (bar_width + space)
+            x_positions.append(x)
+
+            other_mw_values = (processed_df['nuc_gen_avg_mw'] + 
+                            processed_df['hydro_gen_regional_mw'] + processed_df['gt_existing_util_regional_avg_mw'] + processed_df['gt_new_util_regional_avg_mw'] + 
+                            processed_df['elec_import_regional_avg_mw'] + processed_df['biofuel_util_regional_avg_mw'])
+
+            plt.bar(x, other_mw_values, width=bar_width, color='grey', edgecolor='black', linewidth=1, label='Other' if i == 0 else "")
+
+            # Plot capacities first
+            offshore_mw_bottom = other_mw_values + processed_df['onshore_uc_gen_mw']
+            solar_mw_bottom = offshore_mw_bottom + processed_df['offshore_uc_gen_mw']
+            battery_bottom = solar_mw_bottom + processed_df['solar_uc_gen_mw']
+            battery_top = battery_bottom + processed_df['battery_discharge_regional_avg_mw']
+
+            # Plot generation and curtailment on top
+            plot_category(x, processed_df, 'onshore_uc_gen_mw', other_mw_values, '#b6d7a8', 'Onshore Wind Mean Gen' if i == 0 else "", bar_width)
+            plot_category(x, processed_df, 'onshore_curtailed_gen_mw', offshore_mw_bottom - processed_df['onshore_curtailed_gen_mw'], '#d9ead3', 'Onshore Wind Curtailment' if i == 0 else "", bar_width)
+
+            plot_category(x, processed_df, 'offshore_uc_gen_mw', offshore_mw_bottom, '#a4c2f4', 'Offshore Wind Mean Gen' if i == 0 else "", bar_width)
+            plot_category(x, processed_df, 'offshore_curtailed_gen_mw', solar_mw_bottom - processed_df['offshore_curtailed_gen_mw'], '#c9daf8', 'Offshore Wind Curtailment' if i == 0 else "", bar_width)
+
+            plot_category(x, processed_df, 'solar_uc_gen_mw', solar_mw_bottom, '#ffd966', 'Utility Solar Mean Gen' if i == 0 else "", bar_width)
+            solar_top = solar_mw_bottom + processed_df['solar_uc_gen_mw']
+            plot_category(x, processed_df, 'solar_curtailed_gen_mw', solar_top - processed_df['solar_curtailed_gen_mw'], '#ffe599', 'Utility Solar Curtailment' if i == 0 else "", bar_width)
+
+            plot_category(x, processed_df, 'battery_discharge_regional_avg_mw', battery_bottom, 'crimson', 'Battery Mean Discharge' if i == 0 else "", bar_width)
+            plot_category(x, processed_df, 'btm_gen_avg_mw', battery_top, '#fe8e30', 'BTMPV Mean Gen' if i == 0 else "", bar_width)
+
+            # Add horizontal lines specific to their respective columns
+            plt.hlines(y=offshore_mw_bottom.iloc[0], xmin=x - bar_width / 2, xmax=x + bar_width / 2, color='black', linewidth=1)
+            plt.hlines(y=solar_mw_bottom.iloc[0], xmin=x - bar_width / 2, xmax=x + bar_width / 2, color='black', linewidth=1)
+
+        # Final plot adjustments
+        plt.ylabel('Generation (MW)')
+        plt.title('The Mix of Renewable Energy Generation and Curtailment')
+    
+        labels = []
+        for df in dfs:
+            ghg_mean = df['ghg_reduction_target'].mean()
+            if ghg_mean == 0.25:
+                year = "2025"
+            elif ghg_mean == 0.4:
+                year = "2030"
+            elif ghg_mean == 0.55:
+                year = "2035"
+            elif ghg_mean == 0.7:
+                year = "2040"
+            elif ghg_mean == 0.78:
+                year = "2045"
+            elif ghg_mean == 0.85 or ghg_mean == 0.99:
+                year = "2050"
+            labels.append(f"{year} ({df['model_rgt'].mean() * 100:.1f}% RE)")
+        x_ticks = [pos.mean() for pos in x_positions]
+        plt.xticks(x_ticks, labels, rotation=45, ha='right')
+
+        plt.legend(loc='upper right', bbox_to_anchor=(1.5, 1))
+        plt.xlim(-0.5, len(index) * num_dfs * (bar_width + space) - 0.5)
+        plt.tick_params(axis='x', which='both', bottom=False, top=False)
+        ax = plt.gca()
+        ax.set_axisbelow(True)
+        plt.grid(axis='y', alpha=0.6)
+        plt.savefig(f'{args.results_dir}/{args.dir_time}/generation_mix_{args.dir_time}.png', bbox_inches='tight')
+
+    def plot_category(x, df, column_name, bottom_values, color, label, bar_width):
+        edge_width = 1 if 'uc_gen_mw' in column_name or 'battery' in column_name or 'btm_gen_avg_mw' in column_name else 0
+        bar_width = 0.15 if 'uc_gen_mw' in column_name or 'battery' in column_name or 'btm_gen_avg_mw' in column_name else 0.1475
+        plt.bar(x, df[column_name], width=bar_width, bottom=bottom_values, color=color, label=label, edgecolor='black', linewidth=edge_width)
+
+    plot_power_mix([processed_df])
+         
+    def plot_curtailment_cdf(args, processed_df):
+        """
+        Plots the cumulative density function (CDF) of curtailment in MW for the target year.
+
+        Parameters:
+        args (Namespace): Arguments containing the results directory and time directory.
+        processed_df (pd.DataFrame): DataFrame containing the processed data.
+        """
+        plt.clf()
+
+        ts_results_dir = f'{args.results_dir}/{args.dir_time}/ts_results'
+        csv_files = sorted(glob(f'{ts_results_dir}/*.csv'))
+
+        # Read and concatenate all CSV files
+        try:
+            df_list = [pd.read_csv(file) for file in csv_files]
+            results = pd.concat(df_list, ignore_index=True)
+        except Exception as e:
+            print(f"Error reading CSV files: {e}")
+            return
+
+        # Convert 'date.time' to datetime and set as index
+        results['date.time'] = pd.to_datetime(results['date.time'])
+        results.set_index('date.time', inplace=True)
+
+        # Calculate sum of curtailments
+        curtailed_columns = [col for col in results.columns if 'curtailed' in col]
+        results['sum_curtailments'] = results[curtailed_columns].sum(axis=1)
+
+        # Sort the data for CDF
+        sorted_curtailments = np.sort(results['sum_curtailments'])
+
+        # Calculate the cumulative distribution
+        cdf = np.cumsum(sorted_curtailments)
+        p = 1. * np.arange(len(results['sum_curtailments'])) / (len(results['sum_curtailments']) - 1)
+
+        # Plot CDF
+        plt.plot(sorted_curtailments, p, color='deeppink')
+        plt.xlabel("Curtailment in MW")
+        plt.ylabel("Cumulative Percentage (%)")
+        plt.title(f"The Cumulative Distribution of Curtailment in MW for the Target Year with GHG Reduction of {processed_df['ghg_reduction_target'][0] * 100}%")
+        
+        # Save plot
+        output_dir = f'{args.results_dir}/{args.dir_time}'
+        os.makedirs(output_dir, exist_ok=True)
+        plt.savefig(f'{output_dir}/curtailment_cdf_{args.dir_time}.png')
+
+    plot_curtailment_cdf(args, processed_df)
+
+    def plot_hourly_curtailment():
+
+        ts_results_dir = f'{args.results_dir}/{args.dir_time}/ts_results'
+        csv_files = sorted(glob(f'{ts_results_dir}/*.csv'))
+        
+        df_list = [pd.read_csv(file) for file in csv_files]
+        results = pd.concat(df_list, ignore_index=True)
+    
+        results['date.time'] = pd.to_datetime(results['date.time'])
+        results.set_index('date.time', inplace=True)
+
+        curtailed_columns = [col for col in results.columns if 'curtailed' in col]
+        results['sum_curtailments'] = results[curtailed_columns].sum(axis=1)
+        results['sum_curtailments'] = results['sum_curtailments'] / (len(results['sum_curtailments']) / 8760)
+
+        # Set 'date.time' as the index of the DataFrame
+        results['date.num'] = mdates.date2num(results.index)
+
+        counts = results[results['sum_curtailments'] > 1].groupby(results[results['sum_curtailments'] > 1].index.hour).size()
+        total_sum = counts.sum()
+        #print(counts / total_sum * 100)
+
+        hourly_curtailment =  results.groupby(results.index.hour)['sum_curtailments'].sum() / 1000
+
+        # Create the figure and axes
+        fig, ax = plt.subplots(figsize=(15, 6))
+
+        # Plot the distribution plot for unique hour vs hourly curtailment
+        hourly_curtailment.plot(kind='bar', ax=ax, color='deeppink')
+        ax2 = ax.twinx()
+        percentage = counts / total_sum * 100
+        ax2.plot(ax.get_xticks(), percentage, marker='o', color='blue')
+
+        ax.set_xlabel("Hour of the Day")
+        ax.set_ylabel("Curtailment in GWh")
+        ax2.set_ylabel("Percentage (%)")
+        
+        ax.set_title(f"The Distribution of Hourly Curtailment in GW and the Percentage of Occurence in Each Hour the Target Year with GHG Reduction of {processed_df['ghg_reduction_target'][0] * 100}%")
+        plt.grid()
+        plt.savefig(f'{args.results_dir}/{args.dir_time}/hourly_curtailment_distribution_{args.dir_time}.png')
+
+    plot_hourly_curtailment()
 
 if __name__ == '__main__':
     args = get_args()
