@@ -1,11 +1,11 @@
 import numpy as np
+import pandas as pd
 from gurobipy import *
 from scripts.utils import (load_timeseries, btmpv_capacity_projection, return_tx_dict,
                     return_costs_for_model, calculate_constant_costs)
 
 
-
-def create_model(args, model_config, lct, ghgt, elec_ratio):
+def create_model(args, model_config, lct, ghgt, elec_ratio, proj_year, min_capacity):
     '''
     Function that create the Gurobi model that will be optimized.
 
@@ -17,7 +17,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         2: Minimization of total costs. Total electrification percent of heating + vehicle and GHG
         reduction percent are specified
         3: Minimization of LCOE. GHG reduction target is specified.
-    :param lct: Low carbon target to be met (reneable generation target if args.rgt_boolean=True)
+    :param lct: Low carbon target to be met (renewable generation target if args.rgt_boolean=True)
     :param ghgt: Greenhouse gas reduction target to be met.
     :param elec_ratio: Total percent electrification of heating and vehicle demand to be simulated.
 
@@ -33,21 +33,28 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     baseline_demand_hourly_mw, full_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
     full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
     offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-    flex_hydro_daily_mwh = load_timeseries(args)
+    flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw = load_timeseries(args)
 
     # Load in formatted costs for variable assignment
     cost_dict = return_costs_for_model(args)
 
     # Set up LCT variable
     lowc_target = m.addVar(name = 'lowc_target')
-    if model_config == 0 or model_config == 1:
+    if model_config == 0 or model_config == 1 or model_config == 4:
         m.addConstr(lowc_target - lct == 0)
 
     # Set up GHG variable
     ghg_target = m.addVar(name = 'ghg_target', lb=-GRB.INFINITY)
-
-    if model_config == 1 or model_config == 2 or model_config == 3:
+    if model_config == 1 or model_config == 2 or model_config == 3 or model_config == 4:
         m.addConstr(ghg_target - ghgt == 0)
+
+    # Set up minimum capacity variables
+    min_offshore_cap = m.addVar(name = 'min_offshore_cap')
+    min_battery_cap_mwh = m.addVar(name = 'min_battery_cap_mwh')
+    targets = min_capacity[proj_year]
+    if model_config == 1 or model_config == 4:
+        m.addConstr(min_offshore_cap == targets['min_offshore_capacity'])
+        m.addConstr(min_battery_cap_mwh == targets['min_battery_capacity_mwh'])
 
     m.update()
 
@@ -59,16 +66,17 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     nuc_gen_mw = [int(args.nuclear_boolean) * float(args.nuc_avg_gen_mw[i]) for i in range(args.num_nodes)]
 
     # Determine BTM PV and waste emissions based on whether the projection year is 2019
-    if args.proj_year == 2019:
+    if proj_year == 2019:
         btmpv_cap_mw = args.btmpv_cap_existing_mw
         waste_emissions_kt = args.waste_emissions_kt
     else:
-        btmpv_state_cap_mw = btmpv_capacity_projection(args.proj_year)
+        btmpv_state_capacity_mw = btmpv_capacity_projection(proj_year)
+
+        btmpv_state_cap_mw = m.addVar(name='btmpv_state_capacity_mw')
+        m.addConstr(btmpv_state_cap_mw == btmpv_state_capacity_mw)
+
         btmpv_cap_mw = [btmpv_state_cap_mw * k for k in args.btmpv_dist]
         waste_emissions_kt = 0
-
-    # Define existing usable cap based on reserve requirement
-    gt_existing_cap = [x / args.reserve_req for x in args.existing_gt_cap_mw]
 
     m.update()
     #####----------------------------------------------------------------------------------------------------------#####
@@ -87,6 +95,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         m.addConstr(ev_rate <= 1)
 
         m.update()
+
         if args.same_eheating_ev_rate_boolean:
             # Set the eheating and ev_rate equal
             m.addConstr(eheating_rate == ev_rate)
@@ -111,11 +120,16 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
         m.update()
 
+        ## nodal distribution upgrade cost with the peakload increment
+        peakload_diff = m.addVar(obj=cost_dict['dist_upg_mw'][i], name=f'dist_upg_peak_load_add_node_{i+1}')
+        print('checkpts dist cost', i, cost_dict['dist_upg_mw'][i])
+
         ## Initialize capacity variables
         onshore_cap     = m.addVar(obj=cost_dict['onshore_cost_per_mw'], name=f'onshore_cap_node_{i+1}')
         offshore_cap    = m.addVar(obj=cost_dict['offshore_cost_per_mw'], name=f'offshore_cap_node_{i+1}')
         solar_cap       = m.addVar(obj=cost_dict['solar_cost_per_mw'][i], name = f'solar_cap_node_{i+1}')
         gt_new_cap      = m.addVar(obj=cost_dict['gt_cost_per_mw'][i], name = f'gt_new_cap_node_{i+1}')
+        gt_existing_cap = m.addVar(obj=cost_dict['existing_gt_cost_per_mw'][i], name = f'gt_existing_cap_node_{i+1}')
         battery_cap_mwh = m.addVar(obj=cost_dict['battery_cost_per_mwh'], name = f'batt_energy_cap_node_{i+1}')
         battery_cap_mw  = m.addVar(obj=cost_dict['battery_cost_per_mw'], name=f'batt_power_cap_node_{i+1}')
 
@@ -127,7 +141,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         # Add capacity constraints
         # Set the amount of new GT cap if no new capacity is allowed
         if not args.new_gt_boolean:
-            m.addConstr(gt_new_cap == args.current_scenario_addl_gt_cap[i])
+            m.addConstr(gt_new_cap == int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
 
         # Fix renewable (wind, solar, and battery) capacities if required
         if args.fix_existing_cap_boolean:
@@ -136,6 +150,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(solar_cap == args.solar_cap_existing_mw[i])
             m.addConstr(battery_cap_mwh == args.existing_battery_cap_mwh[i])
             m.addConstr(battery_cap_mw  == args.existing_battery_cap_mw[i])
+            m.addConstr(gt_existing_cap == args.existing_gt_cap_mw[i])
 
         else:
             m.addConstr(onshore_cap >= float(args.onshore_cap_existing_mw[i]))
@@ -152,6 +167,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             # Constrain battery power and energy to ratio limits in args
             m.addConstr(battery_cap_mw >= args.battery_p2e_ratio_range[0] * battery_cap_mwh)
             m.addConstr(battery_cap_mw <= args.battery_p2e_ratio_range[1] * battery_cap_mwh)
+
+            m.addConstr(gt_existing_cap <= args.existing_gt_cap_mw[i])
 
         m.addConstr(gt_new_cap >= int(args.gt_based_on_current) * args.current_scenario_addl_gt_cap[i])
 
@@ -241,7 +258,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
             m.addConstr(flex_hydro_mw[j] <= args.flex_hydro_cap_mw[i])
             m.addConstr(biofuel_gen_mw[j] <= args.biofuel_cap_mw[i])
             m.addConstr(elec_import[j] <= args.import_limit_mw[i])
-            m.addConstr(gt_existing_util[j] <= gt_existing_cap[i])
+            # m.addConstr(gt_existing_util[j] <= gt_existing_cap[i])
 
             # Sum all the transmission export time series for node i at time step j
             if len(tx_export_keys) > 0:
@@ -257,7 +274,9 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
 
 
             # Contrain Gas turbine capacity
+            m.addConstr(gt_new_util[j] + gt_existing_util[j] <= (gt_new_cap+gt_existing_cap)/args.reserve_req)
             m.addConstr(gt_new_util[j] <= gt_new_cap)
+            m.addConstr(gt_existing_util[j] <= gt_existing_cap)
 
             # Load constraint: No battery/H2 operation in time t=0
             # First transmission loss constraint
@@ -269,6 +288,11 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                         baseline_demand_hourly_mw[j, i] + full_heating_load_hourly_mw[j, i] * eheating_rate -
                         fixed_hydro_hourly_mw[j, i] - nuc_gen_mw[i] - btmpv_cap_mw[i] * btmpv_pot_hourly[j, i],
                         name= f'energy_balance_slack_node_{i+1}[{j}]')
+
+            # nodal demand peak
+            nodal_demand_hrly = baseline_demand_hourly_mw[j, i] + full_heating_load_hourly_mw[j, i] * eheating_rate + \
+                              ev_charging[j] - btmpv_cap_mw[i] * btmpv_pot_hourly[j, i]
+            m.addConstr(peakload_diff + args.current_demand_peak[i] >= nodal_demand_hrly)
 
             # Battery operation constraints
             m.addConstr(batt_charge[j] - battery_cap_mw <= 0)
@@ -365,6 +389,8 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     ## electrification rate constraints
     model_data_eheating_ratio = {}
     model_data_ev_ratio = {}
+    model_data_solar_cap = {}
+    model_data_battery_cap_mwh = {}
 
     # Collect new and existing GT, biofuel, and import util variables, all time dependent
     # Collect offshore capacity, and eheating + ev ratio, one value per node
@@ -379,11 +405,41 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
         model_data_offshore_cap[i] = m.getVarByName(f'offshore_cap_node_{i+1}')
         model_data_eheating_ratio[i] = m.getVarByName(f'eheating_rate_node_{i+1}')
         model_data_ev_ratio[i] = m.getVarByName(f'ev_rate_node_{i+1}')
+        model_data_solar_cap[i] = m.getVarByName(f'solar_cap_node_{i+1}')
+        model_data_battery_cap_mwh[i] = m.getVarByName(f'batt_energy_cap_node_{i+1}')
 
-    # Limit offshore wind to the total allowable capacity
+    # NG flow limits
+    # the building side ng flow
+    bld_ng_load_hourly_mw = {}
+    # 4 nodes + regional total ng flow maximum
+    ng_flow_max_mw = m.addVars((args.num_nodes + 1), obj=args.ng_flow_nominal_cost, name='ng_flow_maximum')
+
+    for i in range(args.num_nodes):
+        for j in trange:
+            # max_() would increase the computation time, so adding new variable for getting the maximum NG flow
+            bld_ng_load_hourly_mw[i, j] = full_ng_heating_load_hourly_mw[j, i] * (1 - model_data_eheating_ratio[i]) + \
+                                          full_ng_dss50_hourly_mw[j, i] * model_data_eheating_ratio[i] * \
+                                          int(args.dss_synthetic_ts) * (1 - int(args.ps_without_emissions))
+            m.addConstr(ng_flow_max_mw[i] >= model_data_gt_new_util[i, j] / args.new_gt_efficiency +
+                        model_data_gt_existing_util[i, j] / args.existing_gt_efficiency + bld_ng_load_hourly_mw[i, j])
+    for j in trange:
+        m.addConstr(ng_flow_max_mw[args.num_nodes] >= quicksum(model_data_gt_new_util[i, j] / args.new_gt_efficiency +
+                                                               model_data_gt_existing_util[i, j] / args.existing_gt_efficiency + bld_ng_load_hourly_mw[i, j]
+                                                               for i in range(args.num_nodes)))
+    # nodal ng flow limit
+    if args.peak_ng_flow_limit_nodal:
+        m.addConstrs(ng_flow_max_mw[i] <= args.ng_current_max_flow_mw_nodal[i] for i in range(args.num_nodes))
+    # regional ng flow limit
+    if args.peak_ng_flow_limit_regional:
+        m.addConstr(ng_flow_max_mw[args.num_nodes] <= args.ng_current_max_flow_mw_regional)
+
+    # Limit offshore wind to the total allowable capacity and the regulated minimum
     m.addConstr(quicksum(model_data_offshore_cap[i] for i in range(args.num_nodes)) <=
                 args.offshore_cap_total_limit_mw)
-
+    if model_config == 4:
+        m.addConstr(quicksum(model_data_offshore_cap[i] for i in range(args.num_nodes)) >= min_offshore_cap)
+        # Constrain battery energy to meet the regulated minimum
+        m.addConstr(quicksum(model_data_battery_cap_mwh[i] for i in range(args.num_nodes)) >= min_battery_cap_mwh)
 
     # add the const make all electrification rate be equal
     if args.same_nodal_elecfx_rates_boolean:
@@ -408,8 +464,7 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                               for i in range(args.num_nodes))
 
     # Weighted FF EV electrification ratio based on the EV load distribution
-    weighted_ev_elecfx_ratio = quicksum(args.icv_load_dist[i] * model_data_ev_ratio[i] for i in range(
-        args.num_nodes))
+    weighted_ev_elecfx_ratio = quicksum(args.icv_load_dist[i] * model_data_ev_ratio[i] for i in range(args.num_nodes))
 
     # Constrain the electrification fractions to be either == to >= what's specified by elec_ratio
     # The electrification ratio is applied to the amounts of electrified load, eheating and vehicle
@@ -443,42 +498,60 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
     m.update()
 
     # Low-carbon or renewable constraint
-    if model_config == 0 or model_config == 1:
+    if model_config == 0 or model_config == 1 or model_config == 4:
         frac_netload = 1 - lowc_target
         # Scale to avoid numerical issues on the quadratic constraint
         numer_scale = 1e6
         demand_for_lcp = (full_demand_sum_mwh - full_hq_imports_sum_mwh) * frac_netload
-
         if args.rgt_boolean:  # Apply RGT constaint
+            carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
+        elif int(args.CLCPA_rgt) * proj_year == 2030: # 2030 we use RGT for pathway finding in CLCPA
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_nuclear_sum_mwh + full_biofuel_sum_mwh)
         else: # Apply LCT constraint
             carbon_gen = (full_gt_new_sum_mwh + full_gt_existing_sum_mwh + full_biofuel_sum_mwh)
 
         if args.lcp_constraint_ge: # LCP >= LCP Target
             m.addConstr(carbon_gen/numer_scale - demand_for_lcp/numer_scale <= 0)
-        else: # LCP >= LCP Target
+        else: # LCP == LCP Target
             m.addConstr(carbon_gen/numer_scale - demand_for_lcp/numer_scale == 0)
     m.update()
 
     ### Emissions accounting and constraint application ###
 
     # Find electricity sector emissions -- 1e3 converts from t to kt
+    elec_emissions_kt = m.addVar(name='elec_emissions_kt', lb=-GRB.INFINITY)
     elec_emissions = (full_gt_new_sum_mwh / args.new_gt_efficiency + full_gt_existing_sum_mwh /
                       args.existing_gt_efficiency) * args.ng_e_factor_t_mwh / (1e3 * args.num_years)
+    m.addConstr(elec_emissions_kt == elec_emissions, name='elec_emissions_constraint')
 
     # Heating emissions
+    heating_emissions_kt = m.addVar(name='heating_emissions_kt', lb=-GRB.INFINITY)
     heating_emissions = quicksum((args.flex_space_heating_emissions_kt[i] + args.flex_const_heating_emissions_kt[i])
                                  * (1 - model_data_eheating_ratio[i]) for i in range(args.num_nodes))
+    m.addConstr(heating_emissions_kt == heating_emissions, name='heating_emissions_constraint')
 
     # Accounting for heating emissions from DSS
-    heating_emissions_dss = quicksum(int(args.dss_synthetic_ts) *
+    heating_emissions_dss_kt = m.addVar(name='heating_emissions_dss_kt', lb=-GRB.INFINITY)
+    heating_emissions_dss = quicksum(int(args.dss_synthetic_ts) * (1 - int(args.ps_without_emissions)) *
                          args.flex_space_heating_emissions_kt[i] * model_data_eheating_ratio[i] *
                          full_dss50_ff_heating_load_nodal_avg[i] / full_ff_heating_load_nodal_avg[i]
                          for i in range(args.num_nodes))
+    m.addConstr(heating_emissions_dss_kt == heating_emissions_dss, name='heating_emissions_dss_constraint')
 
     # Find transport emissions
+    trans_emissions_kt = m.addVar(name='trans_emissions_kt', lb=-GRB.INFINITY)
     trans_emissions = args.flex_trans_emissions_kt * quicksum((1 - model_data_ev_ratio[i]) * args.icv_load_dist[i]
                                                          for i in range(args.num_nodes))
+    m.addConstr(trans_emissions_kt == trans_emissions, name='trans_emissions_constraint')
+
+    fixed_trans_emissions = m.addVar(name='fixed_trans_emissions_kt', lb=-GRB.INFINITY)
+    m.addConstr(fixed_trans_emissions == args.fixed_trans_emissions_kt, name='fixed_trans_emissions_constraint')
+    fixed_industrial_emissions = m.addVar(name='fixed_ind_emissions_kt', lb=-GRB.INFINITY)
+    m.addConstr(fixed_industrial_emissions == args.fixed_ind_emissions_kt, name='fixed_ind_emissions_constraint')
+    waste_emissions = m.addVar(name='waste_emissions_kt', lb=-GRB.INFINITY)
+    m.addConstr(waste_emissions == waste_emissions_kt, name='waste_emissions_constraint')
+    baseline_emissions = m.addVar(name='baseline_emissions_kt', lb=-GRB.INFINITY)
+    m.addConstr(baseline_emissions == args.baseline_emissions_kt, name='baseline_emissions_constraint')
 
     # Sum total emissions and constrain to the ghg_target
     m.addConstr((elec_emissions +
@@ -491,7 +564,6 @@ def create_model(args, model_config, lct, ghgt, elec_ratio):
                 name='ghg_emissions_constraint')
 
     m.update()
-
 
     if model_config == 3:
         ## Model Modifications for LCOE Minimization
