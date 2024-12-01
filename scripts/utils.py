@@ -16,7 +16,7 @@ def get_args():
         description = 'nys-cem')
     parser.add_argument('--params_filename',
                         type=str,
-                        default='params.yaml',
+                        default='scripts/params.yaml',
                         help = 'Loads model parameters')
     args = parser.parse_args()
     config = yaml.load(open(args.params_filename), Loader=yaml.FullLoader)
@@ -40,11 +40,11 @@ def btmpv_capacity_projection(year):
     :param year: year
     :return: BTM capacity
     '''
-    K = 10982.023
-    Q = 0.0001680925
-    B = 0.1202713
-    M = 1995.067
-    v = 0.000004955324
+    K = 14731.556460735908
+    Q = 0.21091083211176656
+    B = 0.1191330640592224
+    M = 1982.77920877486
+    v = 0.0013652219332325314
     tt_btmpv_cap = K / (1 + Q * math.exp(-B * (year - M))) ** (1 / v)
 
     return tt_btmpv_cap
@@ -84,7 +84,6 @@ def load_timeseries(args):
     flex_hydro_daily_mwh  = np.array(pd.read_csv(f'{args.data_dir}/flex_hydro_daily_mwh.csv', index_col=0))[0:int(T/24)]
     fixed_hydro_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/fixed_hydro_hourly_mw.csv', index_col=0))[0:T]
 
-
     # Load baseline and full heating electric and thermal demand timeseries
     baseline_demand_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/baseline_demand_hourly_mw.csv',
                                                       index_col=0))[0:T]
@@ -98,6 +97,10 @@ def load_timeseries(args):
     full_ff_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_hourly_mw.csv',
                                                        index_col=0))[0:T]
     full_ff_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ff_heating_dss50_hourly_mw.csv',
+                                                   index_col=0))[0:T]
+    full_ng_heating_load_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ng_heating_hourly_mw.csv',
+                                                          index_col=0))[0:T]
+    full_ng_dss50_hourly_mw = np.array(pd.read_csv(f'{args.data_dir}/ng_heating_dss50_hourly_mw.csv',
                                                    index_col=0))[0:T]
 
     ## Set average hydropower generation
@@ -125,7 +128,7 @@ def load_timeseries(args):
     return baseline_demand_hourly_mw, full_elec_heating_load_hourly_mw, full_ff_heating_load_hourly_mw, \
            full_ff_dss50_hourly_mw, full_ev_load_hourly_mw, full_ev_avg_load_hourly_mw, onshore_pot_hourly, \
            offshore_pot_hourly, solar_pot_hourly, btmpv_pot_hourly, fixed_hydro_hourly_mw, \
-           flex_hydro_daily_mwh
+           flex_hydro_daily_mwh, full_ng_heating_load_hourly_mw, full_ng_dss50_hourly_mw
 
 def return_costs_for_model(args):
     '''
@@ -144,6 +147,7 @@ def return_costs_for_model(args):
     # The interest rate is set in params.yaml
     ann_rate_20years = annualization_rate(args.i_rate, 20)
     ann_rate_10years = annualization_rate(args.i_rate, 10)
+    ann_rate_gt      = annualization_rate(args.i_rate, args.new_gt_lifespan)
 
     # Determine whether we are using the low or medium cost assumptions
     if args.re_cost_scenario == 'low':
@@ -173,14 +177,14 @@ def return_costs_for_model(args):
     ann_battery_capex_mw = args.num_years * ann_rate_10years * float(battery_capex_mw)
     ann_h2_capex_mwh = np.array([args.num_years * ann_rate_10years * float(x) for x in args.h2_capex_mwh])
     ann_h2_capex_mw = np.array([args.num_years * ann_rate_10years * float(x) for x in args.h2_capex_mw])
-    ann_gt_capex_mw = np.array([args.num_years * ann_rate_20years * args.reserve_req * float(x)
+    ann_gt_capex_mw = np.array([args.num_years * ann_rate_gt * float(x)
                                for x in args.gt_capex_mw])
 
     # Determining the FOM costs
     onshore_fom_cost = args.num_years * float(args.onshore_om_cost_mw_yr)
     offshore_fom_cost = args.num_years * float(args.offshore_om_cost_mw_yr)
     solar_fom_cost = args.num_years * float(args.solar_om_cost_mw_yr)
-    gt_fom_cost = args.num_years * float(args.new_gt_om_cost_mw_yr) * args.reserve_req
+    gt_fom_cost = args.num_years * float(args.new_gt_om_cost_mw_yr)
 
     # Determining the VOM costs
     gt_vom_cost = float(args.new_gt_om_cost_mwh)
@@ -196,10 +200,15 @@ def return_costs_for_model(args):
     cost_dict['battery_cost_per_mwh'] = ann_battery_capex_mwh
     cost_dict['h2_cost_per_mw'] = ann_h2_capex_mw # varies by node
     cost_dict['h2_cost_per_mwh'] = ann_h2_capex_mwh # varies by node
+    cost_dict['existing_gt_cost_per_mw'] = np.array([args.num_years * float(x) for x in args.cap_market_cost_mw_yr])
 
     # Per-MWh costs associated with generation are a combination of fuel costs and variable O&M costs (where applicable)
     cost_dict['new_gt_cost_mwh'] = gt_vom_cost + gt_fuel_cost / args.new_gt_efficiency # varies by node
     cost_dict['existing_gt_cost_mwh'] = gt_fuel_cost / args.existing_gt_efficiency # varies by node
+
+    # Per-MW-yr costs for distribution upgrade
+    cost_dict['dist_upg_mw'] = np.array([args.num_years * args.dist_peak_cost_mtp * float(x)
+                                         for x in args.new_dist_cost_mw_yr])
 
     return cost_dict
 
@@ -224,7 +233,7 @@ def calculate_constant_costs(args):
 
     # Find the total amount of generation capacity eligible for capacity maintenance payments
     existing_cap_for_payments_mw = (int(args.nuclear_boolean) * np.array(args.nuc_cap_mw) + np.array(args.hydro_cap_mw)
-                                    + np.array(args.biofuel_cap_mw) + np.array(args.existing_gt_cap_mw))
+                                    + np.array(args.biofuel_cap_mw) )
 
     # Find the cost of maintaining existing capacity over the # years in the study period by multiplying the amount
     # of eligible capacity by the nodal cost of that capacity
